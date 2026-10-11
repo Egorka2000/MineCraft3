@@ -24,7 +24,7 @@ tf2-mc/
 ├── config/checkstyle/     # правила линтера Checkstyle
 ├── build.gradle           # сборка (Gradle приходит через gradlew, отдельно не ставится)
 ├── gradle.properties      # версии Minecraft, Fabric и зависимостей
-├── physics/               # чистая Java: математика движения и взрыва (появится в T1.1)
+├── physics/               # подпроект на чистой Java: математика движения, свои юнит-тесты
 ├── src/
 │   ├── main/              # общий код мода и его данные
 │   ├── client/            # код только для клиента

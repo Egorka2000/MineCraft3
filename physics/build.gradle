@@ -1,0 +1,37 @@
+// Чистая Java без зависимостей от Minecraft и Fabric: математика движения и взрыва.
+// Зависимости здесь только тестовые. Класс игры в этом подпроекте не скомпилируется.
+plugins {
+	id 'java-library'
+	id 'checkstyle'
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	testImplementation platform("org.junit:junit-bom:${project.junit_version}")
+	testImplementation "org.junit.jupiter:junit-jupiter"
+	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+java {
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 25
+	it.options.encoding = "UTF-8"
+	it.options.compilerArgs.addAll(["-Xlint:all", "-Werror"])
+}
+
+test {
+	useJUnitPlatform()
+}
+
+checkstyle {
+	toolVersion = project.checkstyle_version
+	configFile = rootProject.file("config/checkstyle/checkstyle.xml")
+	maxWarnings = 0
+}
