@@ -40,7 +40,8 @@ public class Tf2McGameTest {
 
 		CommandNode<CommandSourceStack> root = helper.getLevel().getServer().getCommands().getDispatcher().getRoot().getChild(Tf2Commands.ROOT);
 
-		if (root == null || root.getChild("reload") == null || root.getChild("config") == null) {
+		if (root == null || root.getChild("reload") == null || root.getChild("config") == null
+				|| root.getChild("movement") == null || root.getChild("speed") == null) {
 			throw new IllegalStateException("команда /" + Tf2Commands.ROOT + " не зарегистрирована полностью");
 		}
 

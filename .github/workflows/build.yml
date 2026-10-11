@@ -52,3 +52,33 @@ jobs:
         with:
           name: tf2mc-jar
           path: build/libs/
+
+  # Клиентские игровые тесты: настоящий клиент на виртуальном экране нажимает клавиши и измеряет
+  # движение игрока в одиночной игре и на выделенном сервере. Отдельная задача, потому что ей
+  # нужен экран и она заметно дольше сборки.
+  client-game-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+      - name: setup jdk
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'microsoft'
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v6
+      - name: make gradle wrapper executable
+        run: chmod +x ./gradlew
+      - name: run client game tests
+        run: xvfb-run -a ./gradlew runClientGameTest
+      - name: store client test logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: client-game-test-logs
+          path: |
+            **/build/run/clientGameTest/logs/
+            **/build/run/clientGameTest/crash-reports/
+            **/build/run/clientGameTest/screenshots/

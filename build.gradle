@@ -29,7 +29,7 @@ fabricApi {
 		createSourceSet = true
 		modId = "tf2mc-test"
 		enableGameTests = true
-		enableClientGameTests = false
+		enableClientGameTests = true
 		// Значение true означает согласие с EULA Minecraft (принято владельцем проекта).
 		eula = true
 	}
