@@ -53,18 +53,18 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		preparePlatform(context, server, connection);
 
 		// Ваниль до включения: точка отсчёта и проверка, что мод ничего не меняет без команды.
-		assertNear(where + ": ванильная скорость", VANILLA_WALK, walkSpeed(context, connection), 0.15);
+		assertNear(where + ": ванильная скорость", VANILLA_WALK, walkSpeed(context), 0.15);
 
 		resetPlayer(context, server, connection);
 		server.runCommand("execute as @a run tf2 movement on");
 		connection.waitForClientboundPackets();
 
-		assertNear(where + ": скорость TF2", TF2_SPEED, walkSpeed(context, connection), 0.1);
-		assertStopsByFriction(context, connection, where);
+		assertNear(where + ": скорость TF2", TF2_SPEED, walkSpeed(context), 0.1);
+		assertStopsByFriction(context, where);
 		assertServerAgrees(context, server, connection, where);
 
 		resetPlayer(context, server, connection);
-		assertNear(where + ": высота прыжка TF2", TF2_JUMP, jumpHeight(context, connection), 0.03);
+		assertNear(where + ": высота прыжка TF2", TF2_JUMP, jumpHeight(context), 0.03);
 		assertServerAgrees(context, server, connection, where);
 
 		// Стрейф в воздухе: ввод вбок с поворотом взгляда вслед за полётом разгоняет выше максимума.
@@ -82,14 +82,14 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		withServerConfig(server, "{\"movement\": {\"gravity\": 400}}", () -> {
 			connection.waitForClientboundPackets();
 			resetPlayer(context, server, connection);
-			assertNear(where + ": прыжок при половинной гравитации", TF2_JUMP * 2.0, jumpHeight(context, connection), 0.06);
+			assertNear(where + ": прыжок при половинной гравитации", TF2_JUMP * 2.0, jumpHeight(context), 0.06);
 		});
 		connection.waitForClientboundPackets();
 
 		resetPlayer(context, server, connection);
 		server.runCommand("execute as @a run tf2 movement off");
 		connection.waitForClientboundPackets();
-		assertNear(where + ": ванильная скорость после выключения", VANILLA_WALK, walkSpeed(context, connection), 0.15);
+		assertNear(where + ": ванильная скорость после выключения", VANILLA_WALK, walkSpeed(context), 0.15);
 	}
 
 	/** Ровная каменная площадка высоко над миром: рельеф и вода на замеры не влияют. */
@@ -108,7 +108,7 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 	}
 
 	/** Установившаяся скорость при удержании «вперёд», блоков в секунду. */
-	private static double walkSpeed(ClientGameTestContext context, TestServerConnection connection) {
+	private static double walkSpeed(ClientGameTestContext context) {
 		context.getInput().holdKey(options -> options.keyUp);
 		context.waitTicks(20);
 
@@ -121,7 +121,7 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		return horizontalDistance(start, end) / ticks * 20.0;
 	}
 
-	private static void assertStopsByFriction(ClientGameTestContext context, TestServerConnection connection, String where) {
+	private static void assertStopsByFriction(ClientGameTestContext context, String where) {
 		context.waitTicks(20);
 		Vec3 before = position(context);
 		context.waitTicks(5);
@@ -131,7 +131,7 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 	}
 
 	/** Наибольшая высота над площадкой за время прыжка с места, блоков. */
-	private static double jumpHeight(ClientGameTestContext context, TestServerConnection connection) {
+	private static double jumpHeight(ClientGameTestContext context) {
 		double ground = position(context).y;
 		double apex = ground;
 

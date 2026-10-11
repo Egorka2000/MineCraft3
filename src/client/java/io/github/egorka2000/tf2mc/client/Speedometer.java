@@ -16,35 +16,23 @@ import net.minecraft.network.chat.Component;
 final class Speedometer {
 	private static double groundHeight;
 	private static double jumpHeight;
-	private static double lastSpeed;
 	private static boolean wasOnGround = true;
 
 	private Speedometer() {
-	}
-
-	/** Скорость за последний тик, u/s. Для тестов и замеров. */
-	static double lastSpeed() {
-		return lastSpeed;
-	}
-
-	/** Высота последнего прыжка над точкой отрыва, u. */
-	static double lastJumpHeight() {
-		return jumpHeight;
 	}
 
 	static void tick(Minecraft client) {
 		LocalPlayer player = client.player;
 
 		if (player == null) {
+			// Вышли из мира: замер прыжка из прошлого мира в новом не имеет смысла.
+			jumpHeight = 0.0;
+			wasOnGround = true;
 			return;
 		}
 
 		LocalMovementState.Snapshot state = LocalMovementState.get();
 		double unitsPerBlock = state.config().unitsPerBlock();
-
-		// Скорость считается по фактическому смещению за тик, а не по полю скорости:
-		// так видно то, что реально произошло после столкновений.
-		lastSpeed = UnitConversion.toUnitsPerSecond(Math.hypot(player.getX() - player.xo, player.getZ() - player.zo), unitsPerBlock);
 
 		if (player.onGround()) {
 			groundHeight = player.getY();
@@ -59,7 +47,10 @@ final class Speedometer {
 		wasOnGround = player.onGround();
 
 		if (state.showSpeed()) {
-			player.sendOverlayMessage(Component.literal(String.format(Locale.ROOT, "%.0f u/s   прыжок %.1f u", lastSpeed, jumpHeight)));
+			// Скорость считается по фактическому смещению за тик, а не по полю скорости:
+			// так видно то, что реально произошло после столкновений.
+			double speed = UnitConversion.toUnitsPerSecond(Math.hypot(player.getX() - player.xo, player.getZ() - player.zo), unitsPerBlock);
+			player.sendOverlayMessage(Component.literal(String.format(Locale.ROOT, "%.0f u/s   прыжок %.1f u", speed, jumpHeight)));
 		}
 	}
 }

@@ -18,11 +18,14 @@ public class Tf2Mc implements ModInitializer {
 
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-	private static final ConfigManager CONFIG = new ConfigManager(FabricLoader.getInstance().getConfigDir().resolve(MOD_ID + ".json"));
+	// Создаётся при загрузке мода, а не при загрузке класса: иначе класс нельзя было бы
+	// использовать в юнит-тестах, где загрузчика Fabric нет.
+	private static volatile ConfigManager config;
 
 	@Override
 	public void onInitialize() {
-		logLoadResult(CONFIG.load());
+		config = new ConfigManager(FabricLoader.getInstance().getConfigDir().resolve(MOD_ID + ".json"));
+		logLoadResult(config.load());
 		Tf2Networking.register();
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> Tf2Commands.register(dispatcher));
 
@@ -31,7 +34,13 @@ public class Tf2Mc implements ModInitializer {
 
 	/** Настройки мода; файл лежит в папке конфигов игры. */
 	public static ConfigManager config() {
-		return CONFIG;
+		ConfigManager manager = config;
+
+		if (manager == null) {
+			throw new IllegalStateException("мод ещё не загружен: настройки недоступны");
+		}
+
+		return manager;
 	}
 
 	public static void logLoadResult(ConfigManager.LoadResult result) {
