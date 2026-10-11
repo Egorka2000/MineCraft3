@@ -43,13 +43,31 @@ sourceSets {
 	}
 }
 
+interface ArchiveAccess {
+	@javax.inject.Inject
+	ArchiveOperations getArchives()
+}
+
+configurations {
+	// То, что упаковывается внутрь jar мода.
+	bundled {
+		canBeConsumed = false
+		transitive = false
+	}
+}
+
 dependencies {
+	bundled project(":physics")
+
 	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// Математика движения. Её классы кладутся прямо в jar мода, см. блок jar ниже.
+	implementation project(":physics")
 
 	testImplementation platform("org.junit:junit-bom:${project.junit_version}")
 	testImplementation "org.junit.jupiter:junit-jupiter"
@@ -102,6 +120,40 @@ jar {
 	from("LICENSE") {
 		rename { "${it}_$projectName"}
 	}
+
+	// Классы подпроекта physics попадают в jar мода: отдельным файлом он не поставляется.
+	// ArchiveOperations берётся из сервисов Gradle: вызов zipTree напрямую из скрипта
+	// несовместим с кешем конфигурации.
+	def archives = objects.newInstance(ArchiveAccess).archives
+	from(configurations.bundled.elements.map { files -> files.collect { archives.zipTree(it) } }) {
+		exclude "META-INF/MANIFEST.MF"
+	}
+}
+
+// Собранный jar должен содержать и мод, и математику движения: без неё мод упадёт только при запуске.
+def verifyJarContents = tasks.register("verifyJarContents") {
+	def jarFile = tasks.named("jar").flatMap { it.archiveFile }
+	inputs.file(jarFile)
+
+	doLast {
+		def required = [
+			"fabric.mod.json",
+			"io/github/egorka2000/tf2mc/Tf2Mc.class",
+			"io/github/egorka2000/tf2mc/physics/SourceMovement.class",
+		]
+		def entries = new java.util.zip.ZipFile(jarFile.get().asFile).withCloseable { zip ->
+			zip.entries().collect { it.name }
+		}
+		def missing = required.findAll { !entries.contains(it) }
+
+		if (!missing.isEmpty()) {
+			throw new GradleException("в jar мода нет файлов: ${missing}")
+		}
+	}
+}
+
+tasks.named("check") {
+	dependsOn verifyJarContents
 }
 
 // configure the maven publication
