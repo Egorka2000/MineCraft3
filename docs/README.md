@@ -20,6 +20,8 @@ tf2-mc/
 │   ├── 07-plan.md         # план действий до первой вехи
 │   └── 08-architecture.md # архитектура: модули, границы, сеть, тесты
 ├── .github/workflows/     # CI: сборка и тесты на каждый PR и коммит в main
+├── .editorconfig          # отступы и кодировка для редактора
+├── config/checkstyle/     # правила линтера Checkstyle
 ├── build.gradle           # сборка (Gradle приходит через gradlew, отдельно не ставится)
 ├── gradle.properties      # версии Minecraft, Fabric и зависимостей
 ├── physics/               # чистая Java: математика движения и взрыва (появится в T1.1)

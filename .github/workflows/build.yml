@@ -1,5 +1,6 @@
 # Сборка и тесты на каждый PR и на каждый коммит в main.
-# Задача build включает юнит-тесты (src/test) и серверные игровые тесты (src/gametest).
+# Задача build включает проверки компилятора (-Werror), Checkstyle,
+# юнит-тесты (src/test) и серверные игровые тесты (src/gametest).
 
 name: build
 
@@ -33,9 +34,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew
-      - name: build and test
+      - name: build, lint and test
         run: ./gradlew build
-      - name: store test reports
+      - name: store lint and test reports
         if: failure()
         uses: actions/upload-artifact@v7
         with:
