@@ -58,7 +58,8 @@ jobs:
   # нужен экран и она заметно дольше сборки.
   client-game-test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # Обычный прогон занимает несколько минут; если клиент завис, незачем ждать дольше.
+    timeout-minutes: 15
     steps:
       - name: checkout repository
         uses: actions/checkout@v6
@@ -71,8 +72,15 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew
+      # Программный OpenGL (Mesa): на машинах CI нет видеокарты.
+      - name: install software renderer
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri libglx-mesa0 mesa-utils
+      # Экран с глубиной цвета 24 бита и расширением GLX: на экране xvfb по умолчанию
+      # игра не находит подходящий режим OpenGL и не создаёт окно.
       - name: run client game tests
-        run: xvfb-run -a ./gradlew runClientGameTest
+        run: xvfb-run -a --server-args="-screen 0 1280x720x24 +extension GLX +render -noreset" ./gradlew runClientGameTest
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
       - name: store client test logs
         if: failure()
         uses: actions/upload-artifact@v7
