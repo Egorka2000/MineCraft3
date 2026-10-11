@@ -1,0 +1,13 @@
+{
+	"required": true,
+	"package": "io.github.egorka2000.tf2mc.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"mixins": [
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

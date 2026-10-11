@@ -1,0 +1,38 @@
+{
+	"schemaVersion": 1,
+	"id": "tf2mc",
+	"version": "${version}",
+	"name": "tf2-mc",
+	"description": "Классы Team Fortress 2 со стоковым оружием и движением в стиле Source.",
+	"authors": [
+		"Egor"
+	],
+	"contact": {
+		"homepage": "https://github.com/Egorka2000/MineCraft3",
+		"sources": "https://github.com/Egorka2000/MineCraft3"
+	},
+	"license": "Apache-2.0",
+	"icon": "assets/tf2mc/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"io.github.egorka2000.tf2mc.Tf2Mc"
+		],
+		"client": [
+			"io.github.egorka2000.tf2mc.client.Tf2McClient"
+		]
+	},
+	"mixins": [
+		"tf2mc.mixins.json",
+		{
+			"config": "tf2mc.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~26.3",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
