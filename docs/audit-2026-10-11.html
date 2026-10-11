@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Аудит tf2-mc, 11.10.2026</title>
+<style>
+:root {
+  --bg: #f4f1ea; --card: #fffdf8; --text: #1e1b16; --muted: #6b6457; --line: #ddd5c5;
+  --accent: #b8501e; --high: #b3261e; --mid: #a25d00; --low: #4d6b2f; --done: #2c6e62; --risk: #5b5f97;
+  --chip: #ece6d8;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17150f; --card: #211e17; --text: #efe9dc; --muted: #a69d8b; --line: #3a352a;
+    --accent: #f08a4b; --high: #ff8a80; --mid: #f2b866; --low: #a9cf85; --done: #7fd1c2; --risk: #b3b7ee;
+    --chip: #2d2920;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.5 -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+}
+main, header, nav.filters { max-width: 720px; margin: 0 auto; padding: 0 16px; }
+header { padding-top: 24px; }
+h1 { font-size: 26px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.01em; }
+h2 { font-size: 20px; margin: 36px 0 12px; padding-top: 8px; border-top: 2px solid var(--line); }
+h3 { font-size: 15px; margin: 16px 0 4px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+p { margin: 8px 0; }
+.sub { color: var(--muted); margin: 0 0 16px; }
+.lead { font-size: 17px; }
+code { font: 14px/1.4 ui-monospace, "SF Mono", Consolas, monospace; background: var(--chip); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+a { color: var(--accent); }
+
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 16px 0; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 6px; text-align: center; }
+.stat b { display: block; font-size: 24px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 12px; color: var(--muted); }
+
+/* Фильтры без JavaScript: переключатели стоят перед main и управляют карточками через CSS. */
+input.f { position: absolute; opacity: 0; pointer-events: none; }
+nav.filters { position: sticky; top: 0; z-index: 2; background: var(--bg); padding-top: 10px; padding-bottom: 10px; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+nav.filters::-webkit-scrollbar { display: none; }
+nav.filters label {
+  flex: 0 0 auto; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--card); font-size: 14px; cursor: pointer; white-space: nowrap;
+}
+#f-all:checked ~ nav label[for="f-all"],
+#f-open:checked ~ nav label[for="f-open"],
+#f-done:checked ~ nav label[for="f-done"],
+#f-you:checked ~ nav label[for="f-you"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+input.f:focus-visible ~ nav label { outline: none; }
+#f-open:checked ~ main .card:not(.is-open) { display: none; }
+#f-done:checked ~ main .card:not(.is-done) { display: none; }
+#f-you:checked ~ main .card:not(.is-you) { display: none; }
+
+details.card { background: var(--card); border: 1px solid var(--line); border-left-width: 5px; border-radius: 10px; margin: 10px 0; }
+details.card > summary { list-style: none; cursor: pointer; padding: 12px 14px; display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: start; }
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary .id { font: 600 13px/1.6 ui-monospace, Consolas, monospace; color: var(--muted); }
+details.card > summary .t { font-weight: 600; }
+details.card > summary .meta { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; }
+details.card > summary::after { content: "Подробнее ▾"; grid-column: 2; font-size: 13px; color: var(--accent); }
+details.card[open] > summary::after { content: "Свернуть ▴"; }
+.body { padding: 0 14px 14px; border-top: 1px dashed var(--line); }
+.badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--chip); white-space: nowrap; }
+.sev-high { border-left-color: var(--high); } .sev-high .badge.sev { color: var(--high); }
+.sev-mid { border-left-color: var(--mid); } .sev-mid .badge.sev { color: var(--mid); }
+.sev-low { border-left-color: var(--low); } .sev-low .badge.sev { color: var(--low); }
+.sev-done { border-left-color: var(--done); } .sev-done .badge.sev { color: var(--done); }
+.sev-risk { border-left-color: var(--risk); } .sev-risk .badge.sev { color: var(--risk); }
+.badge.you { background: var(--accent); color: #fff; }
+ul, ol { padding-left: 22px; margin: 6px 0; }
+li { margin: 4px 0; }
+.dep { background: var(--chip); border-radius: 8px; padding: 8px 10px; margin-top: 10px; font-size: 14px; }
+
+ol.waves { list-style: none; padding: 0; margin: 0; counter-reset: w; }
+ol.waves > li { counter-increment: w; position: relative; padding: 0 0 18px 44px; margin: 0; border-left: 2px solid var(--line); margin-left: 15px; }
+ol.waves > li:last-child { border-left-color: transparent; }
+ol.waves > li::before {
+  content: counter(w); position: absolute; left: -16px; top: 0; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--accent); color: #fff; font-weight: 700; display: grid; place-items: center;
+}
+ol.waves b.w { display: block; font-size: 17px; }
+ol.waves .when { color: var(--muted); font-size: 14px; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+footer { max-width: 720px; margin: 32px auto; padding: 0 16px 40px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Аудит проекта tf2-mc</h1>
+  <p class="sub">11 октября 2026 · после шага 6 из 9 до первой вехи · код, архитектура, документация, процесс</p>
+  <p class="lead">Основа проекта в порядке. Найдена одна настоящая ошибка в коде (уже исправлена) и одно серьёзное слабое место: связка физики с игрой не проверяется в CI.</p>
+  <div class="stats">
+    <div class="stat"><b>18</b><span>замечаний</span></div>
+    <div class="stat"><b>6</b><span>исправлено</span></div>
+    <div class="stat"><b>12</b><span>открыто</span></div>
+    <div class="stat"><b>3</b><span>нужны вы</span></div>
+  </div>
+</header>
+
+<input class="f" type="radio" name="f" id="f-all" checked>
+<input class="f" type="radio" name="f" id="f-open">
+<input class="f" type="radio" name="f" id="f-done">
+<input class="f" type="radio" name="f" id="f-you">
+
+<nav class="filters" aria-label="Фильтр замечаний">
+  <label for="f-all">Все</label>
+  <label for="f-open">Открытые</label>
+  <label for="f-done">Исправленные</label>
+  <label for="f-you">Нужны вы</label>
+</nav>
+
+<main>
+
+<h2>Открытые замечания</h2>
+
+<details class="card sev-high is-open" open>
+  <summary><span class="id">О1</span><span class="t">Связка физики с игрой не проверяется в CI</span>
+    <span class="meta"><span class="badge sev">высокая</span><span class="badge">тесты</span></span></summary>
+  <div class="body">
+    <h3>Что не так</h3>
+    <p>Код, который соединяет расчёт движения с Minecraft (<code>Tf2Travel</code> и миксины), покрыт только клиентским игровым тестом. На машинах GitHub этот тест не работает: без видеокарты клиент Minecraft 26.3 не создаёт окно. Две попытки починить (программная отрисовка, настройка виртуального экрана) закончились зависанием.</p>
+    <h3>Чем грозит</h3>
+    <p>Поломка движения пройдёт все автоматические проверки и попадёт в <code>main</code>. Поймать её можно только ручным запуском теста на вашем компьютере.</p>
+    <h3>Как устранить</h3>
+    <ol>
+      <li><b>Шаг А, главный.</b> Вынести цикл подшагов из <code>Tf2Travel</code> в отдельный класс, который работает с игроком через маленький интерфейс: скорость, перемещение, опора, направление взгляда. Тогда его можно проверять юнит-тестами с подставным игроком — они идут в CI за доли секунды. Прижатие к земле, чтение скорости после столкновения, поправка ввода окажутся под защитой.</li>
+      <li><b>Шаг Б, без спешки.</b> Чинить запуск клиента в CI в отдельном workflow с ручным запуском, по порядку: штатная задача Loom для запуска готового клиента на виртуальном экране (её рекомендует документация Fabric); переключение оконной библиотеки на EGL; плагин HeadlessMc, который запускает клиент вообще без отрисовки.</li>
+    </ol>
+    <div class="dep"><b>Связи.</b> Шаг А нужно сделать до О2 и О5: они меняют тот же цикл, и менять его лучше уже под тестами. Шаг Б ни от чего не зависит и ничего не блокирует.</div>
+  </div>
+</details>
+
+<details class="card sev-high is-open">
+  <summary><span class="id">О2</span><span class="t">Подшаги почти не усиливают стрейф</span>
+    <span class="meta"><span class="badge sev">высокая</span><span class="badge">движение</span><span class="badge">шаг 7</span></span></summary>
+  <div class="body">
+    <h3>Что не так</h3>
+    <p>Направление взгляда в Minecraft обновляется раз в тик. Все три подшага внутри тика считаются с одним и тем же взглядом, поэтому стрейф получает прибавку скорости один раз за тик, а не три. Расчёт в чистом виде обещал 334 u/s за секунду стрейфа, а в игре подшаги дают заметно меньше.</p>
+    <h3>Чем грозит</h3>
+    <p>Стрейф и распрыжка — главный приоритет проекта. Без исправления они будут слабее, чем в TF2.</p>
+    <h3>Как устранить</h3>
+    <p>Плавный поворот: каждый подшаг считается с углом между взглядом прошлого тика и текущего. Затем замерить в клиентском тесте три варианта — один шаг, три подшага, три подшага с плавным поворотом — и выбрать по числам и по вашим ощущениям.</p>
+    <p>Побочный эффект: при резком рывке мышью направление «размазывается» на один тик, то есть на 50 мс. На практике это незаметно.</p>
+    <div class="dep"><b>Связи.</b> После О1-А и О3. Делается вместе с О5 — тот же участок кода. Это ядро шага 7.</div>
+  </div>
+</details>
+
+<details class="card sev-mid is-open">
+  <summary><span class="id">О3</span><span class="t">Клиентский тест ходит только по ровной площадке</span>
+    <span class="meta"><span class="badge sev">средняя</span><span class="badge">тесты</span></span></summary>
+  <div class="body">
+    <h3>Что не так</h3>
+    <p>Замеров на ступеньках, у стен, под потолком, на краю блока, в воде и на лестницах нет. То, что там всё работает, известно только из чтения кода игры.</p>
+    <h3>Как устранить</h3>
+    <p>Добавить в сценарий теста: полублок и целый блок на пути, стену под углом, низкий потолок, край площадки, мелководье, лестницу. Сначала зафиксировать, как ведёт себя текущий код, и только потом менять движение.</p>
+    <div class="dep"><b>Связи.</b> Ничего не требует. Нужен перед О2 и О5, чтобы видеть, что они ничего не сломали. Заодно закрывает И1: у исправления прыжка на мелководье появится тест.</div>
+  </div>
+</details>
+
+<details class="card sev-mid is-open is-you">
+  <summary><span class="id">О4</span><span class="t">Готовый jar не запускался в обычном Minecraft</span>
+    <span class="meta"><span class="badge sev">средняя</span><span class="badge">сборка</span><span class="badge you">нужны вы</span></span></summary>
+  <div class="body">
+    <h3>Что не так</h3>
+    <p>Мод проверялся только в среде разработки. Файл <code>tf2mc-0.1.0.jar</code>, который я вам прислал, в настоящем лаунчере не запускал никто.</p>
+    <h3>Как устранить</h3>
+    <ol>
+      <li><b>Быстро, от вас:</b> положить jar и Fabric API в папку <code>mods</code> Minecraft 26.3 с Fabric Loader, зайти в мир, выполнить <code>/tf2 movement on</code>. Пять минут — и ответ есть.</li>
+      <li><b>Надолго, от меня:</b> добавить в сборку штатную задачу Loom, которая поднимает настоящий сервер с готовым jar. Она пойдёт в CI и будет ловить ошибки упаковки на каждом PR.</li>
+    </ol>
+    <div class="dep"><b>Связи.</b> Ни от чего не зависит. Сделать до того, как jar уйдёт другим игрокам.</div>
+  </div>
+</details>
+
+<details class="card sev-low is-open">
+  <summary><span class="id">О5</span><span class="t">Песок душ и мёд тормозят втрое сильнее</span>
+    <span class="meta"><span class="badge sev">низкая</span><span class="badge">движение</span><span class="badge">шаг 7</span></span></summary>
+  <div class="body">
+    <h3>Что не так</h3>
+    <p>Игра применяет замедление блока при каждом перемещении. Мод перемещает игрока три раза за тик, поэтому замедление срабатывает три раза вместо одного.</p>
+    <h3>Как устранить</h3>
+    <p>Применять замедление один раз за тик: на всех подшагах, кроме последнего, восстанавливать горизонтальную скорость после перемещения, если столкновения не было.</p>
+    <div class="dep"><b>Связи.</b> После О1-А, вместе с О2.</div>
+  </div>
+</details>
+
+<details class="card sev-low is-open">
+  <summary><span class="id">О6</span><span class="t">Лёд и слизь не скользят</span>
+    <span class="meta"><span class="badge sev">низкая</span><span class="badge">движение</span></span></summary>
+  <div class="body">
+    <h3>Что не так</h3>
+    <p>Расчёт трения не учитывает, на каком блоке стоит игрок.</p>
+    <h3>Как устранить</h3>
+    <p>Добавить в расчёт множитель трения поверхности — в Source такое свойство у поверхностей есть. Для обычного блока множитель 1, для льда около 0,05. Изменение добавочное: существующие тесты и поведение на обычных блоках не меняются.</p>
+    <div class="dep"><b>Связи.</b> После О2, чтобы не менять интерфейс расчёта дважды. Можно отложить за первую веху: в TF2 льда нет, нужно это только для карт в Minecraft.</div>
+  </div>
+</details>
+
+<details class="card sev-low is-open">
+  <summary><span class="id">О7</span><span class="t">Эффекты зелий не действуют, бег меняет поле зрения</span>
+    <span class="meta"><span class="badge sev">низкая</span><span class="badge">движение</span><span class="badge">шаг 8</span></span></summary>
+  <div class="body">
+    <h3>Что не так</h3>
+    <p>При включённом движении TF2 эффекты Скорость, Прыгучесть и Плавное падение игнорируются. Клавиша бега на скорость не влияет, но поле зрения всё равно расширяется.</p>
+    <h3>Как устранить</h3>
+    <ul>
+      <li>Плавное падение — возвращать ванильное движение, как уже сделано для Левитации.</li>
+      <li>Скорость и Прыгучесть — не учитывать сознательно: в TF2 свои усиления, они появятся с оружием.</li>
+      <li>Бег при выбранном классе отключать — поле зрения перестанет дёргаться.</li>
+    </ul>
+    <div class="dep"><b>Связи.</b> Нужен класс игрока, то есть шаг 8. Входит в правила класса (задача T2.5).</div>
+  </div>
+</details>
+
+<details class="card sev-low is-open is-you">
+  <summary><span class="id">О8</span><span class="t">Высота прыжка: 52,2 u в моде, 50 u на вики</span>
+    <span class="meta"><span class="badge sev">низкая</span><span class="badge">числа</span><span class="badge you">нужны вы</span></span></summary>
+  <div class="body">
+    <h3>Что не так</h3>
+    <p>Скорость прыжка 289 u/s при гравитации 800 даёт 52,2 u. Вики указывает 50 u. Какое число верно для самой TF2, из проекта не проверить. Моё первое объяснение разницы оказалось неверным.</p>
+    <h3>Как устранить</h3>
+    <p>Замер в самой TF2: в консоли включить <code>cl_showpos 1</code>, встать на ровном месте, прыгнуть и записать, на сколько выросла координата z в верхней точке. Если выйдет 50 — ставим в настройках <code>jumpSpeed</code> 283, код менять не нужно.</p>
+    <div class="dep"><b>Связи.</b> Ни от чего не зависит и ничего не блокирует.</div>
+  </div>
+</details>
+
+<details class="card sev-low is-open is-you">
+  <summary><span class="id">О9</span><span class="t">Версия инструмента сборки плавающая</span>
+    <span class="meta"><span class="badge sev">низкая</span><span class="badge">сборка</span><span class="badge you">нужны вы</span></span></summary>
+  <div class="body">
+    <h3>Что не так</h3>
+    <p>Loom указан как «последняя версия ветки 1.18». Так сделано в официальном шаблоне Fabric, но сборка может измениться без нашего участия.</p>
+    <h3>Как устранить</h3>
+    <p>Закрепить точную версию 1.18.4 — именно она используется сейчас. Плюс: сборка воспроизводима. Минус: обновления Loom придётся ставить вручную.</p>
+    <div class="dep"><b>Связи.</b> Это изменение версии зависимости, по правилам проекта нужно ваше согласие.</div>
+  </div>
+</details>
+
+<details class="card sev-risk is-open">
+  <summary><span class="id">О10</span><span class="t">Сервер доверяет клиенту</span>
+    <span class="meta"><span class="badge sev">принятый риск</span><span class="badge">архитектура</span></span></summary>
+  <div class="body">
+    <p>Движение считает клиент, сервер проверяет только грубые нарушения. Изменённый клиент может двигаться как угодно. Это ваше решение, для игры с друзьями его достаточно.</p>
+    <h3>Что можно сделать позже</h3>
+    <p>Дешёвая серверная проверка: горизонтальная скорость игрока не выше максимума его класса с запасом, с поправкой на недавний взрыв. Это не античит, но грубое ускорение отсекает.</p>
+    <div class="dep"><b>Связи.</b> Нужен класс игрока. Разумно после беты.</div>
+  </div>
+</details>
+
+<details class="card sev-risk is-open">
+  <summary><span class="id">О11</span><span class="t">Миксин привязан к приватному методу игры</span>
+    <span class="meta"><span class="badge sev">принятый риск</span><span class="badge">архитектура</span></span></summary>
+  <div class="body">
+    <p>Mojang может переименовать метод в любом обновлении. Риск уже смягчён: при несовпадении мод падает при запуске, а не ломается молча, и это ловит серверный игровой тест в CI.</p>
+    <div class="dep"><b>Связи.</b> Действий не требуется до смены версии Minecraft.</div>
+  </div>
+</details>
+
+<details class="card sev-low is-open">
+  <summary><span class="id">О12</span><span class="t">Ошибки процесса: непроверенный CI и смешанный PR</span>
+    <span class="meta"><span class="badge sev">процесс</span></span></summary>
+  <div class="body">
+    <h3>Что не так</h3>
+    <ul>
+      <li>Я добавил клиентский тест в проверки PR, не убедившись, что он запускается в CI. Итог: 45 минут зависаний и задержка слияния.</li>
+      <li>В один PR попали и ваши решения, и код, вопреки правилу «одна задача — один PR».</li>
+      <li>Объяснение высоты прыжка я выдал за установленный факт, а это была гипотеза.</li>
+    </ul>
+    <h3>Как устранить</h3>
+    <p>Правила в <code>CLAUDE.md</code>: новую задачу CI сначала запускать вручную в ветке и включать в проверки PR только после зелёного прогона; решения владельца и код оформлять разными PR; непроверенное объяснение помечать как гипотезу.</p>
+    <div class="dep"><b>Связи.</b> Делается сразу, в том же PR, что и этот отчёт.</div>
+  </div>
+</details>
+
+<h2>Исправлено</h2>
+
+<details class="card sev-done is-done">
+  <summary><span class="id">И1</span><span class="t">Прыжок на мелководье терялся</span>
+    <span class="meta"><span class="badge sev">исправлено</span><span class="badge">ошибка</span></span></summary>
+  <div class="body">
+    <p>На мелководье игра вызывает обычный прыжок. Мод его перехватывал, но движение в воде не считает, и прыжок пропадал: из лужи нельзя было выпрыгнуть. Теперь в жидкости мод прыжок не трогает.</p>
+    <p>Эта ошибка есть в первом jar, который я вам прислал. Второй файл её не содержит.</p>
+    <div class="dep"><b>Остаток.</b> Исправление сделано по чтению кода игры, теста нет. Появится вместе с О3.</div>
+  </div>
+</details>
+
+<details class="card sev-done is-done">
+  <summary><span class="id">И2</span><span class="t">Документы описывали не ту схему клиента и сервера</span>
+    <span class="meta"><span class="badge sev">исправлено</span><span class="badge">документы</span></span></summary>
+  <div class="body">
+    <p>В правилах проекта, брифе и описании физики стояло «один и тот же код на клиенте и сервере». Реализовано иначе: движение считает клиент по настройкам сервера. Формулировки переписаны.</p>
+  </div>
+</details>
+
+<details class="card sev-done is-done">
+  <summary><span class="id">И3</span><span class="t">Главный класс мода нельзя было использовать в тестах</span>
+    <span class="meta"><span class="badge sev">исправлено</span><span class="badge">код</span></span></summary>
+  <div class="body">
+    <p>Класс обращался к загрузчику Fabric в момент загрузки, поэтому всё, что на него ссылается, нельзя было покрыть юнит-тестами. Настройки теперь создаются при запуске мода.</p>
+  </div>
+</details>
+
+<details class="card sev-done is-done">
+  <summary><span class="id">И4</span><span class="t">Сетевой пакет не был покрыт тестом</span>
+    <span class="meta"><span class="badge sev">исправлено</span><span class="badge">тесты</span></span></summary>
+  <div class="body">
+    <p>Если перепутать порядок полей при записи и чтении, клиент получил бы чужие настройки без единой ошибки. Добавлен тест: запись и чтение дают тот же результат, недопустимые значения из сети отклоняются.</p>
+  </div>
+</details>
+
+<details class="card sev-done is-done">
+  <summary><span class="id">И5</span><span class="t">Неиспользуемые методы и параметры</span>
+    <span class="meta"><span class="badge sev">исправлено</span><span class="badge">код</span></span></summary>
+  <div class="body"><p>Убраны из спидометра и клиентского теста.</p></div>
+</details>
+
+<details class="card sev-done is-done">
+  <summary><span class="id">И6</span><span class="t">«Лишний» игровой тест в отчёте сервера</span>
+    <span class="meta"><span class="badge sev">выяснено</span><span class="badge">тесты</span></span></summary>
+  <div class="body">
+    <p>Сервер сообщал о четырёх игровых тестах при трёх написанных. Четвёртый — встроенный тест самой игры <code>always_pass</code>, он есть всегда. Ошибки нет.</p>
+  </div>
+</details>
+
+<h2>Порядок устранения</h2>
+<p>Порядок выбран по зависимостям: сначала защита тестами, потом изменения в защищённом коде.</p>
+
+<ol class="waves">
+  <li><b class="w">Сразу</b><span class="when">в том же PR, что и отчёт</span>
+    <ul><li>О12 — правила в <code>CLAUDE.md</code></li><li>И6 — происхождение четвёртого теста</li></ul></li>
+  <li><b class="w">Перед шагом 7</b><span class="when">защита перед изменениями</span>
+    <ul><li>О1-А — вынести цикл подшагов и покрыть юнит-тестами</li><li>О3 — расширить клиентский тест: ступеньки, стены, вода</li></ul></li>
+  <li><b class="w">Шаг 7</b><span class="when">подшаги и стрейф</span>
+    <ul><li>О2 — плавный поворот взгляда, замер трёх вариантов</li><li>О5 — замедление блоков один раз за тик</li><li>О6 — скользкие блоки, если решим не откладывать</li></ul></li>
+  <li><b class="w">Параллельно</b><span class="when">ничего не блокирует</span>
+    <ul><li>О1-Б — запуск клиента в CI</li><li>О4 — проверка готового jar сервером в CI</li><li>О9 — закрепление версии Loom, после вашего согласия</li></ul></li>
+  <li><b class="w">Шаг 8 и позже</b><span class="when">нужен класс игрока</span>
+    <ul><li>О7 — эффекты и бег, в правилах класса</li><li>О10 — серверная проверка скорости, после беты</li></ul></li>
+</ol>
+
+<h2>Что нужно от вас</h2>
+<div class="tablewrap">
+<table>
+  <tr><th>Что</th><th>Сколько времени</th><th>Зачем</th></tr>
+  <tr><td>Поставить jar в обычный Minecraft 26.3 и включить <code>/tf2 movement on</code></td><td class="n">5 минут</td><td>О4: работает ли мод вне среды разработки</td></tr>
+  <tr><td>Побегать и попрыгать, описать ощущения</td><td class="n">10 минут</td><td>Единственная проверка, которую нельзя автоматизировать</td></tr>
+  <tr><td>Замерить высоту прыжка в TF2 через <code>cl_showpos 1</code></td><td class="n">2 минуты</td><td>О8: 50 или 52 u</td></tr>
+  <tr><td>Решить, закреплять ли версию Loom</td><td class="n">ответ да/нет</td><td>О9</td></tr>
+</table>
+</div>
+
+<h2>Что выдержало проверку</h2>
+<ul>
+  <li><b>Чистая физика в отдельном подпроекте.</b> Класс Minecraft там не компилируется, 28 тестов идут доли секунды. Именно они поймали ошибку в объяснении высоты прыжка.</li>
+  <li><b>Одно место пересчёта единиц.</b> Число 45 в коде не встречается, масштаб берётся из настроек.</li>
+  <li><b>Точка встраивания.</b> Вода, лава и элитры остались ванильными без отдельного кода.</li>
+  <li><b>Настройки задаёт сервер.</b> Проверено тестом: правка файла на сервере меняет прыжок у клиента.</li>
+  <li><b>Замеры в игре совпали с расчётом</b> в одиночной игре и на выделенном сервере: 300 u/s, прыжок 52,2 u, расхождение позиций клиента и сервера 0.</li>
+  <li><b>Числа с источниками.</b> Каждое число TF2 в коде имеет строку в таблице сверки.</li>
+</ul>
+
+<h2>Состояние проверок</h2>
+<div class="tablewrap">
+<table>
+  <tr><th>Проверка</th><th>Количество</th><th>В CI</th></tr>
+  <tr><td>Юнит-тесты математики движения</td><td class="n">28</td><td>да</td></tr>
+  <tr><td>Юнит-тесты мода</td><td class="n">38</td><td>да</td></tr>
+  <tr><td>Серверные игровые тесты</td><td class="n">3</td><td>да</td></tr>
+  <tr><td>Клиентский игровой тест, 10 замеров в двух режимах</td><td class="n">1 сценарий</td><td>нет, только локально</td></tr>
+  <tr><td>Предупреждения компилятора как ошибки, Checkstyle, состав jar</td><td class="n">—</td><td>да</td></tr>
+</table>
+</div>
+
+</main>
+
+<footer>
+  Отчёт самодостаточен: работает без интернета и без JavaScript. Карточки раскрываются нажатием, фильтр вверху прокручивается вбок. Актуальное состояние замечаний ведётся в <code>docs/07-plan.md</code> и <code>docs/04-decisions.md</code>.
+</footer>
+
+</body>
+</html>
