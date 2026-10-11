@@ -50,7 +50,7 @@
 - [Fabric: сеть](https://docs.fabricmc.net/develop/networking), [автоматические тесты](https://docs.fabricmc.net/develop/automatic-testing).
 - [Fabric API 26.3: пакет attachment.v1](https://maven.fabricmc.net/docs/fabric-api-0.160.4+26.3/net/fabricmc/fabric/api/attachment/v1/package-summary.html)
 - [Fabric: миграция маппингов](https://docs.fabricmc.net/develop/porting/mappings) — с версии 26.1 Minecraft не обфусцирован, Yarn больше не поддерживается, используются имена Mojang.
-- [TF2 Wiki](https://wiki.teamfortress.com/) — числа классов и оружия.
+- [TF2 Wiki](https://wiki.teamfortress.com/) — числа классов и оружия. Страницы классов с описанием, оружием и механиками: [Soldier](https://wiki.teamfortress.com/wiki/Soldier); ссылки на остальные классы даёт владелец проекта по запросу.
 - [Valve Developer Community](https://developer.valvesoftware.com/wiki/Team_Fortress_2/Mapper%27s_Reference) — размеры игрока.
 
 ## Описания механики движения
