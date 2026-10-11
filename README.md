@@ -10,7 +10,9 @@ Fabric-мод для Minecraft Java Edition: классы Team Fortress 2 со �
 
 | Команда | Что делает |
 |---|---|
-| `gradlew build` | Собирает мод, jar появляется в `build/libs/` |
+| `gradlew build` | Собирает мод и запускает все тесты, jar появляется в `build/libs/` |
+| `gradlew test` | Только юнит-тесты |
+| `gradlew runGameTest` | Только серверные игровые тесты |
 | `gradlew runClient` | Запускает игру с модом |
 | `gradlew runServer` | Запускает выделенный сервер с модом |
 
