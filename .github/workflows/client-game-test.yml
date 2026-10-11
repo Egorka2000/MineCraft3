@@ -1,0 +1,49 @@
+# Клиентские игровые тесты: настоящий клиент на виртуальном экране нажимает клавиши и измеряет
+# движение игрока в одиночной игре и на выделенном сервере.
+#
+# Запускается только вручную (вкладка Actions или `gh workflow run client-game-test.yml`).
+# На машинах GitHub без видеокарты клиент Minecraft 26.3 пока не создаёт окно:
+# "Failed to create backend OpenGL: Couldn't find matching GLX visual". Пока это не решено,
+# задача не входит в проверки PR. Локально тест проходит: `gradlew runClientGameTest`.
+
+name: client-game-test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  client-game-test:
+    runs-on: ubuntu-24.04
+    # Обычный прогон занимает несколько минут; если клиент завис, незачем ждать дольше.
+    timeout-minutes: 15
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+      - name: setup jdk
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'microsoft'
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v6
+      - name: make gradle wrapper executable
+        run: chmod +x ./gradlew
+      # Программный OpenGL (Mesa): на машинах CI нет видеокарты.
+      - name: install software renderer
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri libglx-mesa0 libegl1 mesa-utils
+      - name: run client game tests
+        run: xvfb-run -a --server-args="-screen 0 1280x720x24 +extension GLX +render -noreset" ./gradlew runClientGameTest
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+      - name: store client test logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: client-game-test-logs
+          path: |
+            **/build/run/clientGameTest/logs/
+            **/build/run/clientGameTest/crash-reports/
+            **/build/run/clientGameTest/screenshots/
