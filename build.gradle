@@ -1,6 +1,7 @@
 plugins {
 	id 'net.fabricmc.fabric-loom' version "${loom_version}"
 	id 'maven-publish'
+	id 'checkstyle'
 }
 
 repositories {
@@ -70,6 +71,18 @@ test {
 
 tasks.withType(JavaCompile).configureEach {
 	it.options.release = 25
+	it.options.encoding = "UTF-8"
+	// Предупреждения компилятора считаются ошибками.
+	// Отключены две категории, которые сообщают не о коде мода:
+	// processing — шум от обработчиков аннотаций, classfile — аннотации внутри чужих jar.
+	it.options.compilerArgs.addAll(["-Xlint:all,-processing,-classfile", "-Werror"])
+}
+
+// Checkstyle проверяет все наборы исходников и входит в задачу check, а значит и в build.
+// Правила: config/checkstyle/checkstyle.xml.
+checkstyle {
+	toolVersion = project.checkstyle_version
+	maxWarnings = 0
 }
 
 java {
