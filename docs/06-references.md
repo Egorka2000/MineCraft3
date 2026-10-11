@@ -50,4 +50,9 @@
 
 ## Описания механики движения
 
-Найти и добавить сюда: статьи про air strafing и bunny hopping в Source (разбор формулы ускорения в воздухе). Пока не подобраны.
+- [Quakeworld Air Physics](https://mattias.niklewski.com/2013/01/qw_air_physics.html) — откуда берётся ограничение 30 u/s и почему поворот при стрейфе даёт прирост скорости.
+- [Replicating Source Engine Air Strafing in Unity](https://www.theseus.fi/bitstream/handle/10024/507593/Peltola_Mikko.pdf) — дипломная работа: разбор формулы ускорения в воздухе по шагам, пересчёт единиц.
+- [TF2 Wiki, Strafing](https://wiki.teamfortress.com/wiki/Strafing) — описание воздушного стрейфа словами.
+- [Mathematical description of air strafing](https://backup.jump.tf/forums/forums.tf2jump.com/index.php/topic%2C2369.0.html) — форум jump.tf, замеры для TF2.
+
+Не открывать: репозитории с утёкшими исходниками TF2 (встречаются в поисковой выдаче) и файлы движения из Source SDK ради алгоритмов. Числа из открытого SDK использовать можно, см. `05-sources.md`.
