@@ -1,30 +1,52 @@
-# Automatically build the project and run any configured tests for every push
-# and submitted pull request. This can help catch issues that only occur on
-# certain platforms or Java versions, and provides a first line of defence
-# against bad commits.
+# Сборка и тесты на каждый PR и на каждый коммит в main.
+# Задача build включает юнит-тесты (src/test) и серверные игровые тесты (src/gametest).
 
 name: build
-on: [pull_request, push]
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Новый коммит в ту же ветку отменяет ещё не законченный прогон.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - name: checkout repository
         uses: actions/checkout@v6
-      - name: validate gradle wrapper
-        uses: gradle/actions/wrapper-validation@v6
       - name: setup jdk
         uses: actions/setup-java@v5
         with:
           java-version: '25'
           distribution: 'microsoft'
+      # Проверяет подлинность gradle-wrapper.jar и кеширует зависимости между прогонами.
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v6
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew
-      - name: build
+      - name: build and test
         run: ./gradlew build
+      - name: store test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reports
+          path: |
+            **/build/reports/
+            **/build/test-results/
+            **/build/run/**/logs/
+            **/build/junit.xml
       - name: capture build artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: Artifacts
+          name: tf2mc-jar
           path: build/libs/

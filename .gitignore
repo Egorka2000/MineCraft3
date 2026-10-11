@@ -1,3 +1,6 @@
+# Рабочие и временные файлы
+tmp/
+
 # Gradle / Fabric
 .gradle/
 build/
