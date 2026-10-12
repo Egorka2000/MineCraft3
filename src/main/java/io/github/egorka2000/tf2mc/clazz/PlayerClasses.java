@@ -9,6 +9,7 @@ import net.fabricmc.fabric.api.attachment.v1.AttachmentRegistry;
 import net.fabricmc.fabric.api.attachment.v1.AttachmentSyncPredicate;
 import net.fabricmc.fabric.api.attachment.v1.AttachmentType;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -36,6 +37,7 @@ public final class PlayerClasses {
 					.syncWith(ByteBufCodecs.STRING_UTF8, AttachmentSyncPredicate.all()));
 
 	private static final Identifier HEALTH_MODIFIER = Tf2Mc.id("class_health");
+	private static final Identifier OVERHEAL_MODIFIER = Tf2Mc.id("class_overheal");
 
 	private PlayerClasses() {
 	}
@@ -48,6 +50,7 @@ public final class PlayerClasses {
 		// При входе — на случай, если сохранённые данные игрока разошлись с описанием класса
 		// в новой версии мода.
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> applyHealth(handler.getPlayer(), get(handler.getPlayer()), false));
+		ServerTickEvents.END_SERVER_TICK.register(ClassHealth::tickOverheal);
 	}
 
 	/** Класс игрока; пусто, если игрок ванильный. Работает и на сервере, и на клиенте. */
@@ -72,15 +75,16 @@ public final class PlayerClasses {
 	}
 
 	/**
-	 * Приводит максимальное здоровье игрока к классу.
+	 * Приводит максимальное здоровье и предел оверхила игрока к классу.
 	 *
 	 * @param tfClass класс игрока; пусто для ванильного
 	 * @param refill  выставить ли здоровье на максимум: при выборе класса и после перерождения
 	 */
 	private static void applyHealth(ServerPlayer player, Optional<TfClass> tfClass, boolean refill) {
 		AttributeInstance maxHealth = player.getAttribute(Attributes.MAX_HEALTH);
+		AttributeInstance maxOverheal = player.getAttribute(Attributes.MAX_ABSORPTION);
 
-		if (maxHealth == null) {
+		if (maxHealth == null || maxOverheal == null) {
 			return;
 		}
 
@@ -88,16 +92,23 @@ public final class PlayerClasses {
 			// Здоровье в числах TF2 один к одному: модификатор добавляет разницу с ванильной базой.
 			maxHealth.addOrReplacePermanentModifier(new AttributeModifier(
 					HEALTH_MODIFIER, tfClass.get().maxHealth() - maxHealth.getBaseValue(), AttributeModifier.Operation.ADD_VALUE));
+			// Оверхил хранится как ванильное поглощение; его предел — тоже атрибут.
+			maxOverheal.addOrReplacePermanentModifier(new AttributeModifier(
+					OVERHEAL_MODIFIER, HealthRules.overhealCapacity(tfClass.get().maxHealth()), AttributeModifier.Operation.ADD_VALUE));
 
 			if (refill) {
 				player.setHealth(player.getMaxHealth());
 			}
 		} else {
 			maxHealth.removeModifier(HEALTH_MODIFIER);
+			maxOverheal.removeModifier(OVERHEAL_MODIFIER);
 		}
 
 		if (player.getHealth() > player.getMaxHealth()) {
 			player.setHealth(player.getMaxHealth());
 		}
+
+		// Игра подрезает оверхил под новый предел только на следующем тике; здесь — сразу.
+		player.setAbsorptionAmount(refill ? 0.0F : player.getAbsorptionAmount());
 	}
 }

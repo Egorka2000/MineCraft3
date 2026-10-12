@@ -97,12 +97,12 @@ footer { max-width: 720px; margin: 32px auto; padding: 0 16px 40px; color: var(-
 
 <header>
   <h1>Аудит проекта tf2-mc</h1>
-  <p class="sub">Аудит от 11 октября 2026 · состояние на 12 октября, после шага 7 из 9 до первой вехи · код, архитектура, документация, процесс</p>
+  <p class="sub">Аудит от 11 октября 2026 · состояние на 12 октября, после шага 8б, до первой вехи остался шаг 9 · код, архитектура, документация, процесс</p>
   <p class="lead">Основа проекта в порядке. Из двадцати замечаний двенадцать исправлены, в том числе единственная настоящая ошибка в коде. Главное из оставшегося: клиентский игровой тест не запускается в CI и готовый jar не проверен вне среды разработки.</p>
   <div class="stats">
     <div class="stat"><b>20</b><span>замечаний</span></div>
-    <div class="stat"><b>12</b><span>исправлено</span></div>
-    <div class="stat"><b>8</b><span>открыто</span></div>
+    <div class="stat"><b>13</b><span>исправлено</span></div>
+    <div class="stat"><b>7</b><span>открыто</span></div>
     <div class="stat"><b>3</b><span>нужны вы</span></div>
   </div>
 </header>
@@ -166,7 +166,7 @@ footer { max-width: 720px; margin: 32px auto; padding: 0 16px 40px; color: var(-
 
 <details class="card sev-low is-open">
   <summary><span class="id">О7</span><span class="t">Эффекты зелий не действуют, бег меняет поле зрения</span>
-    <span class="meta"><span class="badge sev">низкая</span><span class="badge">движение</span><span class="badge">шаг 8б</span></span></summary>
+    <span class="meta"><span class="badge sev">исправлено</span><span class="badge">движение</span><span class="badge">шаг 8б</span></span></summary>
   <div class="body">
     <h3>Что не так</h3>
     <p>При включённом движении TF2 эффекты Скорость, Прыгучесть и Плавное падение игнорируются. Клавиша бега на скорость не влияет, но поле зрения всё равно расширяется.</p>
@@ -362,9 +362,9 @@ footer { max-width: 720px; margin: 32px auto; padding: 0 16px 40px; color: var(-
   <tr><td class="n">6б</td><td>Клиентский тест на ступеньках, стенах, воде</td><td>О3</td><td class="n">готово</td></tr>
   <tr><td class="n">7</td><td>Подшаги и стрейф, правила TF2 для земли и прыжка</td><td>О2, О5, О13, О14</td><td class="n">готово</td></tr>
   <tr><td class="n">8а</td><td>Класс игрока: хранение, команды, скорость и здоровье</td><td>—</td><td class="n">готово</td></tr>
-  <tr><td class="n">8б</td><td>Правила класса, оверхил, показ здоровья</td><td>О7</td><td class="n">следующий</td></tr>
+  <tr><td class="n">8б</td><td>Правила класса, оверхил, показ здоровья</td><td>О7</td><td class="n">готово</td></tr>
   <tr><td class="n">∥</td><td>Параллельные задачи</td><td>О1 (CI), О4, О9</td><td class="n">ждёт</td></tr>
-  <tr><td class="n">9</td><td>Ракета и ракетный прыжок</td><td>—</td><td class="n">ждёт</td></tr>
+  <tr><td class="n">9</td><td>Ракета и ракетный прыжок</td><td>—</td><td class="n">следующий</td></tr>
   <tr><td class="n">—</td><td>Веха 1: прототип</td><td>—</td><td class="n">ждёт</td></tr>
   <tr><td class="n">позже</td><td>После вехи и после беты</td><td>О6, О10</td><td class="n">ждёт</td></tr>
 </table>
@@ -374,11 +374,9 @@ footer { max-width: 720px; margin: 32px auto; padding: 0 16px 40px; color: var(-
 <h2>Что осталось</h2>
 
 <ol class="waves">
-  <li><b class="w">Шаг 8б — следующий</b><span class="when">задачи T2.4, T2.5</span>
-    <ul><li>О7 — бег отключён, при Плавном падении ванильное движение</li><li>Урон от падения по TF2, без сытости и ванильной регенерации</li><li>Оверхил и команда <code>/tf2 health</code>, число HP вместо сердец</li></ul></li>
   <li><b class="w">Параллельно</b><span class="when">задачи T1.7–T1.9, ничего не блокируют</span>
     <ul><li>О1 — запуск клиентского теста в CI</li><li>О4 — проверка готового jar настоящим сервером в CI</li><li>О9 — закрепление версии Loom, после вашего согласия</li></ul></li>
-  <li><b class="w">Шаг 9</b><span class="when">задачи T3.1, T3.2</span>
+  <li><b class="w">Шаг 9 — следующий</b><span class="when">задачи T3.1, T3.2</span>
     <ul><li>Формула отбрасывания, ракета, взрыв, ракетный прыжок</li></ul></li>
   <li><b class="w">После вехи</b><span class="when">не срочно</span>
     <ul><li>О6 — скользкие блоки</li><li>О10 — серверная проверка скорости, после беты</li></ul></li>
