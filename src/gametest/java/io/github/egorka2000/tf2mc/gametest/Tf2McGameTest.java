@@ -220,11 +220,21 @@ public class Tf2McGameTest {
 
 			check(player.getHealth() == 100.0f, "здоровье восстановилось само: " + player.getHealth());
 
-			// Оверхил: не больше 150% максимума.
+			// Оверхил командой: правило 150% на неё не действует.
 			run(server.createCommandSourceStack(), "health set 250 " + name);
 			check(player.getHealth() == 200.0f && player.getAbsorptionAmount() == 50.0f, "здоровье 250: " + player.getHealth() + " + " + player.getAbsorptionAmount());
 			run(server.createCommandSourceStack(), "health add 500 " + name);
-			check(ClassHealth.total(player) == 300.0f, "предел оверхила: " + ClassHealth.total(player));
+			check(ClassHealth.total(player) == 750.0f, "оверхил командой выше 150%: " + ClassHealth.total(player));
+
+			// Лечение оверхил выше 150% не поднимает и не срезает.
+			check(ClassHealth.heal(player, 100.0f, true) == 750.0f, "лечение изменило оверхил, выставленный командой: " + ClassHealth.total(player));
+
+			// Лечение по правилам TF2: сначала здоровье, потом оверхил не выше 150% максимума.
+			run(server.createCommandSourceStack(), "health set 100 " + name);
+			check(ClassHealth.heal(player, 50.0f, false) == 150.0f, "лечение без оверхила: " + ClassHealth.total(player));
+			check(ClassHealth.heal(player, 500.0f, false) == 200.0f, "лечение без оверхила подняло здоровье выше максимума: " + ClassHealth.total(player));
+			check(ClassHealth.heal(player, 30.0f, true) == 230.0f, "лечение с оверхилом: " + ClassHealth.total(player));
+			check(ClassHealth.heal(player, 500.0f, true) == 300.0f, "предел оверхила при лечении: " + ClassHealth.total(player));
 
 			// Полный оверхил спадает за 15 секунд: за секунду уходит 100 / 15.
 			for (int i = 0; i < 20; i++) {
