@@ -19,6 +19,12 @@ import net.minecraft.world.entity.player.Player;
  * и первым принимает урон.
  */
 public final class ClassHealth {
+	/**
+	 * Сколько оверхила игра вообще может хранить: верхняя граница ванильного атрибута поглощения.
+	 * Правило TF2 про 150% здесь не действует — его соблюдает {@link #heal}.
+	 */
+	public static final double STORAGE_LIMIT = 2048.0;
+
 	private static final double TICKS_PER_SECOND = 20.0;
 
 	private ClassHealth() {
@@ -55,8 +61,9 @@ public final class ClassHealth {
 	}
 
 	/**
-	 * Выставляет здоровье вместе с оверхилом. Всё, что выше максимума, уходит в оверхил
-	 * и обрезается его пределом; у ванильного игрока оверхила нет.
+	 * Выставляет здоровье вместе с оверхилом — для отладочной команды. Всё, что выше максимума,
+	 * уходит в оверхил без правила 150%: предел только тот, что может хранить игра.
+	 * У ванильного игрока оверхила нет.
 	 *
 	 * @return здоровье, которое получилось на самом деле
 	 */
@@ -64,8 +71,36 @@ public final class ClassHealth {
 		float health = Mth.clamp(total, 1.0F, player.getMaxHealth());
 
 		player.setHealth(health);
-		// Предел оверхила — атрибут MAX_ABSORPTION, игра обрезает по нему сама.
+		// Игра сама обрезает поглощение по атрибуту MAX_ABSORPTION; у ванильного игрока он равен нулю.
 		player.setAbsorptionAmount(Math.max(total - health, 0.0F));
+		return total(player);
+	}
+
+	/**
+	 * Лечение по правилам TF2 — для источников вроде лечебной пушки Medic. Сначала восполняется
+	 * здоровье, остаток уходит в оверхил, но не выше 150% максимума класса. Оверхил, который уже
+	 * больше этого предела (его выставили командой), лечение не трогает.
+	 *
+	 * @param allowOverheal может ли источник лечить сверх максимума
+	 * @return здоровье с оверхилом после лечения
+	 */
+	public static float heal(ServerPlayer player, float amount, boolean allowOverheal) {
+		float missing = player.getMaxHealth() - player.getHealth();
+		float toHealth = Mth.clamp(amount, 0.0F, missing);
+
+		player.setHealth(player.getHealth() + toHealth);
+
+		Optional<TfClass> tfClass = PlayerClasses.get(player);
+
+		if (allowOverheal && tfClass.isPresent()) {
+			float limit = (float) HealthRules.overhealCapacity(tfClass.get().maxHealth());
+			float current = player.getAbsorptionAmount();
+
+			if (current < limit) {
+				player.setAbsorptionAmount(Math.min(current + amount - toHealth, limit));
+			}
+		}
+
 		return total(player);
 	}
 

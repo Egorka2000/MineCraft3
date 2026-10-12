@@ -92,9 +92,10 @@ public final class PlayerClasses {
 			// Здоровье в числах TF2 один к одному: модификатор добавляет разницу с ванильной базой.
 			maxHealth.addOrReplacePermanentModifier(new AttributeModifier(
 					HEALTH_MODIFIER, tfClass.get().maxHealth() - maxHealth.getBaseValue(), AttributeModifier.Operation.ADD_VALUE));
-			// Оверхил хранится как ванильное поглощение; его предел — тоже атрибут.
+			// Оверхил хранится как ванильное поглощение; его предел — тоже атрибут. Он открыт до конца:
+			// правило 150% соблюдают источники лечения, а отладочная команда может выставить больше.
 			maxOverheal.addOrReplacePermanentModifier(new AttributeModifier(
-					OVERHEAL_MODIFIER, HealthRules.overhealCapacity(tfClass.get().maxHealth()), AttributeModifier.Operation.ADD_VALUE));
+					OVERHEAL_MODIFIER, ClassHealth.STORAGE_LIMIT, AttributeModifier.Operation.ADD_VALUE));
 
 			if (refill) {
 				player.setHealth(player.getMaxHealth());
