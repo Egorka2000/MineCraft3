@@ -18,5 +18,6 @@ public class Tf2McClient implements ClientModInitializer {
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> LocalMovementState.reset());
 
 		ClientTickEvents.END_CLIENT_TICK.register(Speedometer::tick);
+		HealthHud.register();
 	}
 }
