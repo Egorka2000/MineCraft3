@@ -1,6 +1,7 @@
 package io.github.egorka2000.tf2mc.command;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.builder.ArgumentBuilder;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import io.github.egorka2000.tf2mc.Tf2Mc;
@@ -11,15 +12,22 @@ import io.github.egorka2000.tf2mc.net.Tf2Networking;
 
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
  * Команды {@code /tf2 ...}. Всё, что меняет состояние сервера, доступно только операторам.
- * Переключатели движения и спидометра меняют только состояние самого игрока, поэтому доступны всем.
+ *
+ * <p>У команд, действующих на игрока, в конце необязательный ник. Без ника команда применяется
+ * к тому, кто её ввёл, и доступна всем: она меняет только его собственное состояние.
+ * С ником — к названному игроку, и это может только оператор.
  */
 public final class Tf2Commands {
 	public static final String ROOT = "tf2";
+
+	/** Имя необязательного аргумента с ником игрока. */
+	public static final String PLAYER = "player";
 
 	private Tf2Commands() {
 	}
@@ -38,30 +46,52 @@ public final class Tf2Commands {
 
 	@FunctionalInterface
 	private interface Switch {
-		int apply(CommandSourceStack source, boolean enabled) throws CommandSyntaxException;
+		int apply(CommandSourceStack source, ServerPlayer target, boolean enabled);
+	}
+
+	@FunctionalInterface
+	private interface PlayerAction {
+		int apply(CommandSourceStack source, ServerPlayer target) throws CommandSyntaxException;
 	}
 
 	private static LiteralArgumentBuilder<CommandSourceStack> onOff(String name, Switch action) {
 		return Commands.literal(name)
-				.then(Commands.literal("on").executes(context -> action.apply(context.getSource(), true)))
-				.then(Commands.literal("off").executes(context -> action.apply(context.getSource(), false)));
+				.then(withOptionalPlayer(Commands.literal("on"), (source, target) -> action.apply(source, target, true)))
+				.then(withOptionalPlayer(Commands.literal("off"), (source, target) -> action.apply(source, target, false)));
 	}
 
-	private static int setMovement(CommandSourceStack source, boolean enabled) throws CommandSyntaxException {
-		ServerPlayer player = source.getPlayerOrException();
-		MovementToggle.setMovementEnabled(player.getUUID(), enabled);
-		Tf2Networking.sync(player);
+	/**
+	 * Добавляет в конец команды необязательный ник. Без ника действие применяется к тому, кто ввёл
+	 * команду; с ником — к названному игроку, и для этого нужны права оператора.
+	 */
+	static <T extends ArgumentBuilder<CommandSourceStack, T>> T withOptionalPlayer(T command, PlayerAction action) {
+		return command
+				.executes(context -> action.apply(context.getSource(), context.getSource().getPlayerOrException()))
+				.then(Commands.argument(PLAYER, EntityArgument.player())
+						.requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+						.executes(context -> action.apply(context.getSource(), EntityArgument.getPlayer(context, PLAYER))));
+	}
 
-		source.sendSuccess(() -> Component.literal(enabled ? "tf2-mc: движение TF2 включено" : "tf2-mc: движение TF2 выключено"), false);
+	/** Для сообщения об успехе: «себе» или имя игрока, к которому применена команда. */
+	private static String describeTarget(CommandSourceStack source, ServerPlayer target) {
+		return source.getEntity() == target ? "" : " игроку " + target.getGameProfile().name();
+	}
+
+	private static int setMovement(CommandSourceStack source, ServerPlayer target, boolean enabled) {
+		MovementToggle.setMovementEnabled(target.getUUID(), enabled);
+		Tf2Networking.sync(target);
+
+		String whom = describeTarget(source, target);
+		source.sendSuccess(() -> Component.literal((enabled ? "tf2-mc: движение TF2 включено" : "tf2-mc: движение TF2 выключено") + whom), false);
 		return 1;
 	}
 
-	private static int setSpeedometer(CommandSourceStack source, boolean enabled) throws CommandSyntaxException {
-		ServerPlayer player = source.getPlayerOrException();
-		MovementToggle.setSpeedometerEnabled(player.getUUID(), enabled);
-		Tf2Networking.sync(player);
+	private static int setSpeedometer(CommandSourceStack source, ServerPlayer target, boolean enabled) {
+		MovementToggle.setSpeedometerEnabled(target.getUUID(), enabled);
+		Tf2Networking.sync(target);
 
-		source.sendSuccess(() -> Component.literal(enabled ? "tf2-mc: спидометр включён" : "tf2-mc: спидометр выключен"), false);
+		String whom = describeTarget(source, target);
+		source.sendSuccess(() -> Component.literal((enabled ? "tf2-mc: спидометр включён" : "tf2-mc: спидометр выключен") + whom), false);
 		return 1;
 	}
 
