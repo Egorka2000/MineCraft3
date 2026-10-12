@@ -12,7 +12,7 @@ public class Tf2McClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		ClientPlayNetworking.registerGlobalReceiver(MovementSyncPayload.TYPE, (payload, context) ->
-				LocalMovementState.set(new LocalMovementState.Snapshot(payload.enabled(), payload.showSpeed(), payload.config())));
+				LocalMovementState.set(new LocalMovementState.Snapshot(payload.showSpeed(), payload.config())));
 
 		// Следующий сервер может быть без мода: без сброса движение TF2 осталось бы включённым.
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> LocalMovementState.reset());

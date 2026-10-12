@@ -7,7 +7,9 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.config.ConfigManager;
 import io.github.egorka2000.tf2mc.config.Tf2Config;
-import io.github.egorka2000.tf2mc.movement.MovementToggle;
+import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
+import io.github.egorka2000.tf2mc.clazz.TfClass;
+import io.github.egorka2000.tf2mc.movement.SpeedometerToggle;
 import io.github.egorka2000.tf2mc.net.Tf2Networking;
 
 import net.minecraft.commands.CommandSourceStack;
@@ -39,8 +41,7 @@ public final class Tf2Commands {
 				.then(Commands.literal("reload")
 						.requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
 						.executes(context -> reloadConfig(context.getSource())))
-				// Временная команда до появления классов (шаг 8 плана).
-				.then(onOff("movement", Tf2Commands::setMovement))
+				.then(classCommand())
 				.then(onOff("speed", Tf2Commands::setSpeedometer)));
 	}
 
@@ -77,17 +78,45 @@ public final class Tf2Commands {
 		return source.getEntity() == target ? "" : " игроку " + target.getGameProfile().name();
 	}
 
-	private static int setMovement(CommandSourceStack source, ServerPlayer target, boolean enabled) {
-		MovementToggle.setMovementEnabled(target.getUUID(), enabled);
-		Tf2Networking.sync(target);
+	/**
+	 * {@code /tf2 class} показывает свой класс; {@code /tf2 class <имя> [ник]} выдаёт класс,
+	 * {@code /tf2 class vanilla [ник]} снимает его. Выдавать и снимать класс может только оператор.
+	 */
+	private static LiteralArgumentBuilder<CommandSourceStack> classCommand() {
+		LiteralArgumentBuilder<CommandSourceStack> command = Commands.literal("class")
+				.executes(context -> showClass(context.getSource()));
+
+		for (TfClass tfClass : TfClass.values()) {
+			command.then(withOptionalPlayer(
+					Commands.literal(tfClass.id()).requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)),
+					(source, target) -> setClass(source, target, tfClass)));
+		}
+
+		return command.then(withOptionalPlayer(
+				Commands.literal(TfClass.VANILLA_ID).requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)),
+				(source, target) -> setClass(source, target, null)));
+	}
+
+	private static int showClass(CommandSourceStack source) throws CommandSyntaxException {
+		String name = PlayerClasses.get(source.getPlayerOrException()).map(TfClass::id).orElse(TfClass.VANILLA_ID);
+		source.sendSuccess(() -> Component.literal("tf2-mc: ваш класс — " + name), false);
+		return 1;
+	}
+
+	/**
+	 * @param tfClass новый класс; {@code null} снимает класс
+	 */
+	private static int setClass(CommandSourceStack source, ServerPlayer target, TfClass tfClass) {
+		PlayerClasses.set(target, tfClass);
 
 		String whom = describeTarget(source, target);
-		source.sendSuccess(() -> Component.literal((enabled ? "tf2-mc: движение TF2 включено" : "tf2-mc: движение TF2 выключено") + whom), false);
+		String what = tfClass == null ? "tf2-mc: класс снят" : "tf2-mc: выдан класс " + tfClass.id();
+		source.sendSuccess(() -> Component.literal(what + whom), true);
 		return 1;
 	}
 
 	private static int setSpeedometer(CommandSourceStack source, ServerPlayer target, boolean enabled) {
-		MovementToggle.setSpeedometerEnabled(target.getUUID(), enabled);
+		SpeedometerToggle.setEnabled(target.getUUID(), enabled);
 		Tf2Networking.sync(target);
 
 		String whom = describeTarget(source, target);

@@ -8,14 +8,14 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 
 /**
- * Сервер сообщает клиенту, включено ли у его игрока движение TF2, и передаёт свои настройки.
- * Отправляется при входе игрока, при переключении и после {@code /tf2 reload}.
+ * Сервер передаёт клиенту свои настройки движения и состояние спидометра. Отправляется при входе
+ * игрока, при переключении спидометра и после {@code /tf2 reload}. Включено ли движение TF2,
+ * клиент узнаёт не отсюда, а по классу игрока.
  *
- * @param enabled   включено ли движение TF2
  * @param showSpeed показывать ли спидометр
  * @param config    настройки сервера
  */
-public record MovementSyncPayload(boolean enabled, boolean showSpeed, Tf2Config config) implements CustomPacketPayload {
+public record MovementSyncPayload(boolean showSpeed, Tf2Config config) implements CustomPacketPayload {
 	public static final CustomPacketPayload.Type<MovementSyncPayload> TYPE = new CustomPacketPayload.Type<>(Tf2Mc.id("movement_sync"));
 
 	public static final StreamCodec<FriendlyByteBuf, MovementSyncPayload> CODEC = CustomPacketPayload.codec(MovementSyncPayload::write, MovementSyncPayload::read);
@@ -26,7 +26,6 @@ public record MovementSyncPayload(boolean enabled, boolean showSpeed, Tf2Config 
 	}
 
 	private void write(FriendlyByteBuf buffer) {
-		buffer.writeBoolean(enabled);
 		buffer.writeBoolean(showSpeed);
 		buffer.writeDouble(config.accelerate());
 		buffer.writeDouble(config.airAccelerate());
@@ -43,7 +42,6 @@ public record MovementSyncPayload(boolean enabled, boolean showSpeed, Tf2Config 
 	// Порядок чтения обязан совпадать с порядком записи выше.
 	// Значения вне допустимых границ отклоняет конструктор Tf2Config.
 	private static MovementSyncPayload read(FriendlyByteBuf buffer) {
-		boolean enabled = buffer.readBoolean();
 		boolean showSpeed = buffer.readBoolean();
 		Tf2Config config = new Tf2Config(
 				buffer.readDouble(),
@@ -57,6 +55,6 @@ public record MovementSyncPayload(boolean enabled, boolean showSpeed, Tf2Config 
 				buffer.readDouble(),
 				buffer.readVarInt());
 
-		return new MovementSyncPayload(enabled, showSpeed, config);
+		return new MovementSyncPayload(showSpeed, config);
 	}
 }

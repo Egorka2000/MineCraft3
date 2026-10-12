@@ -1,7 +1,7 @@
 package io.github.egorka2000.tf2mc.movement;
 
+import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
 import io.github.egorka2000.tf2mc.config.Tf2Config;
-import io.github.egorka2000.tf2mc.physics.MoveParams;
 
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
@@ -17,9 +17,6 @@ import net.minecraft.world.phys.Vec3;
  * определяет клиент, а сервер её проверяет (docs/08-architecture.md, раздел 5).
  */
 public final class Tf2Travel {
-	// До шага 8 плана классов нет, поэтому скорость одна для всех: 100% по меркам TF2.
-	private static final double TEMPORARY_MAX_SPEED = MoveParams.BASE_SPEED;
-
 	/**
 	 * За сколько тиков до приземления можно зажать прыжок, чтобы он засчитался. Предварительное
 	 * значение: выбрано без оценки ощущений, см. docs/04-decisions.md.
@@ -54,13 +51,14 @@ public final class Tf2Travel {
 		return isTf2Player(entity) && !entity.isInLiquid();
 	}
 
-	/** Локальный игрок с включённым движением TF2 в состоянии, где оно вообще возможно. */
+	/** Локальный игрок с классом TF2 в состоянии, где движение TF2 вообще возможно. */
 	private static boolean isTf2Player(LivingEntity entity) {
 		if (!(entity instanceof Player player) || !player.isLocalPlayer()) {
 			return false;
 		}
 
-		if (!LocalMovementState.get().enabled()) {
+		// Движение TF2 включено ровно тогда, когда у игрока выбран класс.
+		if (PlayerClasses.get(player).isEmpty()) {
 			return false;
 		}
 
@@ -153,8 +151,11 @@ public final class Tf2Travel {
 		lastYaw = yaw;
 		lastYawTick = entity.tickCount;
 
+		// appliesTo уже проверил, что это игрок с классом.
+		double maxSpeed = PlayerClasses.get((Player) entity).orElseThrow().maxSpeed();
+
 		SubstepLoop.tick(new EntityBody(entity, previousYaw), input.x, input.z, jump,
-				config.toMoveParams(TEMPORARY_MAX_SPEED), config.unitsPerBlock(), config.substeps(), SMOOTH_TURN);
+				config.toMoveParams(maxSpeed), config.unitsPerBlock(), config.substeps(), SMOOTH_TURN);
 		return true;
 	}
 

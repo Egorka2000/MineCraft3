@@ -1,5 +1,6 @@
 package io.github.egorka2000.tf2mc;
 
+import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
 import io.github.egorka2000.tf2mc.command.Tf2Commands;
 import io.github.egorka2000.tf2mc.config.ConfigManager;
 import io.github.egorka2000.tf2mc.net.Tf2Networking;
@@ -27,6 +28,7 @@ public class Tf2Mc implements ModInitializer {
 		config = new ConfigManager(FabricLoader.getInstance().getConfigDir().resolve(MOD_ID + ".json"));
 		logLoadResult(config.load());
 		Tf2Networking.register();
+		PlayerClasses.register();
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> Tf2Commands.register(dispatcher));
 
 		LOGGER.info("tf2-mc загружен");
