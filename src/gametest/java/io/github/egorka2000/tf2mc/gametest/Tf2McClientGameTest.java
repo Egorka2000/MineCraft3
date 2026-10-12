@@ -33,7 +33,7 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 	/** Высота прыжка TF2: 289² / (2 * 800) юнитов. */
 	private static final double TF2_JUMP = 289.0 * 289.0 / 1600.0 / UNITS_PER_BLOCK;
 
-	private static final int PLATFORM_Y = 200;
+	static final int PLATFORM_Y = 200;
 
 	@Override
 	public void runTest(ClientGameTestContext context) {
@@ -77,6 +77,9 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 
 		Tf2Mc.LOGGER.info("[замер] {}: скорость после стрейфа в прыжке: {} блоков/с, {} u/s", where, String.format("%.3f", strafeSpeed), String.format("%.0f", strafeSpeed * UNITS_PER_BLOCK));
 		assertServerAgrees(context, server, connection, where);
+
+		// Неровности: ступенька, блок, стена, потолок, край, мелководье, лестница.
+		TerrainScenarios.run(context, server, connection, where);
 
 		// Настройки сервера доходят до клиента: вдвое меньшая гравитация даёт вдвое более высокий прыжок.
 		withServerConfig(server, "{\"movement\": {\"gravity\": 400}}", () -> {
@@ -179,7 +182,7 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 	}
 
 	/** Сервер принял движение клиента: позиции совпадают, игрока не отбросило назад. */
-	private static void assertServerAgrees(ClientGameTestContext context, TestServerContext serverContext, TestServerConnection connection, String where) {
+	static void assertServerAgrees(ClientGameTestContext context, TestServerContext serverContext, TestServerConnection connection, String where) {
 		connection.waitForServerboundPackets();
 		Vec3 client = position(context);
 		Vec3 server = serverContext.computeOnServer(minecraftServer -> minecraftServer.getPlayerList().getPlayers().getFirst().position());
@@ -207,7 +210,7 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		}
 	}
 
-	private static Vec3 position(ClientGameTestContext context) {
+	static Vec3 position(ClientGameTestContext context) {
 		return context.computeOnClient(client -> client.player.position());
 	}
 
@@ -215,7 +218,7 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		return Math.hypot(to.x - from.x, to.z - from.z);
 	}
 
-	private static void assertNear(String what, double expected, double actual, double tolerance) {
+	static void assertNear(String what, double expected, double actual, double tolerance) {
 		if (Math.abs(actual - expected) > tolerance) {
 			throw new AssertionError(what + ": ожидалось " + expected + " ± " + tolerance + ", получено " + actual);
 		}
