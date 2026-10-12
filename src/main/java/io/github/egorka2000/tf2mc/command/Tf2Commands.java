@@ -1,5 +1,7 @@
 package io.github.egorka2000.tf2mc.command;
 
+import java.util.function.Predicate;
+
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.builder.ArgumentBuilder;
@@ -49,7 +51,7 @@ public final class Tf2Commands {
 						.executes(context -> reloadConfig(context.getSource())))
 				.then(classCommand())
 				.then(healthCommand())
-				.then(onOff("speed", Tf2Commands::setSpeedometer)));
+				.then(onOff("speed", Tf2Commands::setSpeedometer, target -> SpeedometerToggle.isEnabled(target.getUUID()))));
 	}
 
 	@FunctionalInterface
@@ -62,8 +64,16 @@ public final class Tf2Commands {
 		int apply(CommandContext<CommandSourceStack> context, ServerPlayer target) throws CommandSyntaxException;
 	}
 
-	private static LiteralArgumentBuilder<CommandSourceStack> onOff(String name, Switch action) {
+	/**
+	 * Переключатель: {@code on} и {@code off} с необязательным ником, а без слова — смена состояния
+	 * на противоположное для того, кто ввёл команду.
+	 */
+	private static LiteralArgumentBuilder<CommandSourceStack> onOff(String name, Switch action, Predicate<ServerPlayer> isEnabled) {
 		return Commands.literal(name)
+				.executes(context -> {
+					ServerPlayer self = context.getSource().getPlayerOrException();
+					return action.apply(context.getSource(), self, !isEnabled.test(self));
+				})
 				.then(withOptionalPlayer(Commands.literal("on"), (context, target) -> action.apply(context.getSource(), target, true)))
 				.then(withOptionalPlayer(Commands.literal("off"), (context, target) -> action.apply(context.getSource(), target, false)));
 	}
