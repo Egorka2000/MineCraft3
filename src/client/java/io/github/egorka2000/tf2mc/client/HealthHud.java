@@ -15,7 +15,7 @@ import net.minecraft.util.Mth;
  * У игрока с классом TF2 вместо сердец показывается число здоровья, а полоски голода и брони
  * скрыты: сытости и брони в правилах TF2 нет. Простой текст; полноценный HUD — задача T5.1.
  */
-final class HealthHud {
+public final class HealthHud {
 	// Там же, где игра рисует левое сердце.
 	private static final int OFFSET_FROM_CENTER = 91;
 	private static final int OFFSET_FROM_BOTTOM = 39;
@@ -27,11 +27,21 @@ final class HealthHud {
 	/** Доля максимального здоровья, ниже которой число краснеет. */
 	private static final float LOW_HEALTH = 0.5F;
 
+	/** Что показано в последнем кадре; {@code null}, если число здоровья не рисовалось. */
+	private static volatile String shownText;
+
 	private HealthHud() {
+	}
+
+	/** Текст здоровья из последнего кадра. Нужен клиентскому игровому тесту: экран он читать не умеет. */
+	public static String shownText() {
+		return shownText;
 	}
 
 	static void register() {
 		HudElementRegistry.replaceElement(VanillaHudElements.HEALTH_BAR, vanilla -> (graphics, delta) -> {
+			shownText = null;
+
 			if (hasClass()) {
 				extractHealth(graphics);
 			} else {
@@ -76,6 +86,7 @@ final class HealthHud {
 
 		// Округление вверх: пока игрок жив, ноль не показывается.
 		String text = "HP " + Mth.ceil(player.getHealth() + player.getAbsorptionAmount());
+		shownText = text;
 		graphics.text(client.font, text, graphics.guiWidth() / 2 - OFFSET_FROM_CENTER, graphics.guiHeight() - OFFSET_FROM_BOTTOM, color);
 	}
 }

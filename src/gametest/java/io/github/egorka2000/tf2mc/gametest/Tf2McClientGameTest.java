@@ -3,8 +3,10 @@ package io.github.egorka2000.tf2mc.gametest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.Objects;
 
 import io.github.egorka2000.tf2mc.Tf2Mc;
+import io.github.egorka2000.tf2mc.client.HealthHud;
 import io.github.egorka2000.tf2mc.config.ConfigManager;
 
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
@@ -63,6 +65,21 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		// Класс и его здоровье дошли до клиента.
 		assertNear(where + ": максимум здоровья Soldier на клиенте", 200.0, clientMaxHealth(context), 0.001);
 
+		// Вместо сердец на экране число здоровья. В творческом режиме игра здоровье не показывает.
+		server.runCommand("gamemode survival @a");
+		context.waitTicks(5);
+		assertShownHealth(context, where + ": здоровье Soldier на экране", "HP 200");
+		server.runCommand("execute as @a run tf2 health set 300");
+		context.waitTicks(5);
+		// Оверхил спадает на треть единицы за тик, поэтому к моменту проверки он чуть меньше 300.
+		String overheal = context.computeOnClient(client -> HealthHud.shownText());
+
+		if (overheal == null || !overheal.matches("HP (29[5-9]|300)")) {
+			throw new AssertionError(where + ": оверхил на экране: ожидалось от HP 295 до HP 300, получено " + overheal);
+		}
+
+		server.runCommand("execute as @a run tf2 health set 200");
+
 		assertNear(where + ": скорость Soldier", TF2_SPEED, walkSpeed(context), 0.1);
 		assertStopsByFriction(context, where);
 		assertServerAgrees(context, server, connection, where);
@@ -98,6 +115,7 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		connection.waitForClientboundPackets();
 		context.waitTicks(2);
 		assertNear(where + ": максимум здоровья после снятия класса", 20.0, clientMaxHealth(context), 0.001);
+		assertShownHealth(context, where + ": после снятия класса снова сердца", null);
 		assertNear(where + ": ванильная скорость после снятия класса", VANILLA_WALK, walkSpeed(context), 0.15);
 	}
 
@@ -213,6 +231,15 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			}
 		} catch (IOException e) {
 			throw new IllegalStateException("не удалось подменить файл настроек", e);
+		}
+	}
+
+	/** Проверяет текст здоровья, который клиент нарисовал в последнем кадре; {@code null} — число не рисуется. */
+	private static void assertShownHealth(ClientGameTestContext context, String what, String expected) {
+		String shown = context.computeOnClient(client -> HealthHud.shownText());
+
+		if (!Objects.equals(expected, shown)) {
+			throw new AssertionError(what + ": ожидалось " + expected + ", получено " + shown);
 		}
 	}
 
