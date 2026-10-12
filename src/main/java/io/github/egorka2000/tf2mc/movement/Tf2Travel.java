@@ -20,14 +20,42 @@ public final class Tf2Travel {
 	// До шага 8 плана классов нет, поэтому скорость одна для всех: 100% по меркам TF2.
 	private static final double TEMPORARY_MAX_SPEED = MoveParams.BASE_SPEED;
 
+	/**
+	 * За сколько тиков до приземления можно зажать прыжок, чтобы он засчитался. Предварительное
+	 * значение: выбрано без оценки ощущений, см. docs/04-decisions.md.
+	 */
+	private static final int JUMP_BUFFER_TICKS = 2;
+
+	// Плавный поворот взгляда между подшагами: без него подшаги почти не усиливают стрейф.
+	private static final boolean SMOOTH_TURN = true;
+
+	private static final JumpGate JUMP_GATE = new JumpGate(JUMP_BUFFER_TICKS);
+
 	/** В какой тик игрока запрошен прыжок; -1, если запроса нет. */
 	private static int jumpRequestTick = -1;
+
+	/** Горизонтальная скорость перед ванильным прыжком на мелководье, блоков за тик. */
+	private static double shallowJumpX;
+	private static double shallowJumpZ;
+	private static boolean shallowJumpPending;
+
+	/**
+	 * Взгляд на прошлом тике движения. Собственное поле игры для прошлого угла к моменту расчёта
+	 * движения уже равно текущему, поэтому угол запоминается здесь.
+	 */
+	private static double lastYaw;
+	private static int lastYawTick = Integer.MIN_VALUE;
 
 	private Tf2Travel() {
 	}
 
 	/** Нужно ли считать движение этой сущности по правилам TF2 прямо сейчас. */
 	public static boolean appliesTo(LivingEntity entity) {
+		return isTf2Player(entity) && !entity.isInLiquid();
+	}
+
+	/** Локальный игрок с включённым движением TF2 в состоянии, где оно вообще возможно. */
+	private static boolean isTf2Player(LivingEntity entity) {
 		if (!(entity instanceof Player player) || !player.isLocalPlayer()) {
 			return false;
 		}
@@ -36,11 +64,9 @@ public final class Tf2Travel {
 			return false;
 		}
 
-		// В этих случаях остаётся ванильное движение. Для воды, лавы и элитр игра вызывает другие
-		// методы движения, но прыжок на мелководье идёт через общий jumpFromGround. Без проверки
-		// жидкости такой прыжок был бы перехвачен и потерян: движение TF2 в жидкости не считается.
+		// В этих случаях остаётся ванильное движение. Вода, лава и элитры проверяются отдельно:
+		// для них игра вызывает другие методы движения.
 		return !player.getAbilities().flying
-				&& !player.isInLiquid()
 				&& !player.isSpectator()
 				&& !player.isPassenger()
 				&& !player.onClimbable()
@@ -57,8 +83,50 @@ public final class Tf2Travel {
 			return false;
 		}
 
-		jumpRequestTick = entity.tickCount;
+		// Прыжок, для которого клавишу не нажали заново, отменяется целиком: ванильный тоже не нужен.
+		if (JUMP_GATE.acceptPress()) {
+			jumpRequestTick = entity.tickCount;
+		}
+
 		return true;
+	}
+
+	/**
+	 * Вызывается в начале каждого тика сущности: была ли клавиша прыжка зажата в прошлом тике.
+	 * К этому моменту игра ещё не прочитала ввод текущего тика.
+	 */
+	public static void observeJumpKey(LivingEntity entity, boolean wasHeld) {
+		if (entity instanceof Player player && player.isLocalPlayer()) {
+			JUMP_GATE.observePreviousTick(wasHeld);
+		}
+	}
+
+	/**
+	 * Перед ванильным прыжком. На мелководье прыжок остаётся ванильным, потому что движение
+	 * в жидкости мод не считает, но его скорость подменяется скоростью прыжка TF2.
+	 */
+	public static void beforeVanillaJump(LivingEntity entity) {
+		shallowJumpPending = isTf2Player(entity) && entity.isInLiquid();
+
+		if (shallowJumpPending) {
+			shallowJumpX = entity.getDeltaMovement().x;
+			shallowJumpZ = entity.getDeltaMovement().z;
+		}
+	}
+
+	/**
+	 * После ванильного прыжка на мелководье: вертикальная скорость как у прыжка TF2,
+	 * горизонтальная — какой была до прыжка, без ванильного толчка вперёд при беге.
+	 * Иначе ванильный толчок вместе с гравитацией TF2 дал бы прыжок в полтора раза выше обычного.
+	 */
+	public static void afterVanillaJump(LivingEntity entity) {
+		if (!shallowJumpPending) {
+			return;
+		}
+
+		shallowJumpPending = false;
+		Tf2Config config = LocalMovementState.get().config();
+		entity.setDeltaMovement(shallowJumpX, UnitConversion.toBlocksPerTick(config.jumpSpeed(), config.unitsPerBlock()), shallowJumpZ);
 	}
 
 	/**
@@ -78,13 +146,20 @@ public final class Tf2Travel {
 		boolean jump = jumpRequestTick == entity.tickCount;
 		jumpRequestTick = -1;
 
-		SubstepLoop.tick(new EntityBody(entity), input.x, input.z, jump,
-				config.toMoveParams(TEMPORARY_MAX_SPEED), config.unitsPerBlock(), config.substeps());
+		// Если прошлый тик движение TF2 не считалось (вода, лестница, только что включили),
+		// поворачивать не от чего: берётся текущий угол.
+		double yaw = entity.getYRot();
+		double previousYaw = lastYawTick == entity.tickCount - 1 ? lastYaw : yaw;
+		lastYaw = yaw;
+		lastYawTick = entity.tickCount;
+
+		SubstepLoop.tick(new EntityBody(entity, previousYaw), input.x, input.z, jump,
+				config.toMoveParams(TEMPORARY_MAX_SPEED), config.unitsPerBlock(), config.substeps(), SMOOTH_TURN);
 		return true;
 	}
 
 	/** Игрок Minecraft для {@link SubstepLoop}: только передаёт вызовы штатным методам игры. */
-	private record EntityBody(LivingEntity entity) implements MovingBody {
+	private record EntityBody(LivingEntity entity, double previousYaw) implements MovingBody {
 		@Override
 		public double velocityX() {
 			return entity.getDeltaMovement().x;
@@ -118,6 +193,16 @@ public final class Tf2Travel {
 		@Override
 		public double yawDegrees() {
 			return entity.getYRot();
+		}
+
+		@Override
+		public double previousYawDegrees() {
+			return previousYaw;
+		}
+
+		@Override
+		public boolean horizontalCollision() {
+			return entity.horizontalCollision;
 		}
 	}
 }

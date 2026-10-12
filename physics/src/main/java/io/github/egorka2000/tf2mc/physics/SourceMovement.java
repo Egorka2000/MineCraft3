@@ -45,6 +45,15 @@ public final class SourceMovement {
 		// Прыжок проверяется до трения: если нажать его в шаг приземления,
 		// трение не успевает сработать и скорость сохраняется. На этом держится распрыжка.
 		if (onGround && input.jump()) {
+			// Ограничение распрыжки TF2: скорость в момент прыжка не выше заданной доли максимума класса.
+			double hopLimit = params.bunnyHopSpeedFactor() * params.maxSpeed();
+			double hopSpeed = Math.hypot(vx, vy);
+
+			if (hopLimit > 0.0 && hopSpeed > hopLimit) {
+				vx *= hopLimit / hopSpeed;
+				vy *= hopLimit / hopSpeed;
+			}
+
 			vz = params.jumpSpeed();
 			onGround = false;
 		}
@@ -85,6 +94,14 @@ public final class SourceMovement {
 			double gain = speedGain(vx, vy, wishDirX, wishDirY, wishSpeed, wishSpeed, params.accelerate(), dt);
 			vx += wishDirX * gain;
 			vy += wishDirY * gain;
+
+			// На земле скорость не превышает максимум класса, что бы её ни разогнало: приземление после
+			// взрыва, движение по диагонали или ввод под углом к стене. Без этого игрок, упёршийся
+			// в стену под углом, скользил бы вдоль неё быстрее максимума.
+			double[] limited = limitLength(vx, vy, params.maxSpeed());
+			limited = limitBackwardSpeed(limited[0], limited[1], input, params);
+			vx = limited[0];
+			vy = limited[1];
 		} else {
 			// В воздухе прибавка ограничена так, будто игрок хочет двигаться не быстрее airSpeedCap,
 			// но само ускорение считается от полной желаемой скорости. Если направление ввода
@@ -134,6 +151,44 @@ public final class SourceMovement {
 		}
 
 		return Math.min(accel * accelSpeed * dt, room);
+	}
+
+	/** Укорачивает вектор до заданной длины, сохраняя направление. */
+	private static double[] limitLength(double x, double y, double limit) {
+		double length = Math.hypot(x, y);
+
+		if (length <= limit) {
+			return new double[] {x, y};
+		}
+
+		return new double[] {x * limit / length, y * limit / length};
+	}
+
+	/**
+	 * Ограничивает составляющую скорости, направленную назад относительно взгляда.
+	 * Боковая составляющая не меняется: пятиться быстро нельзя, а двигаться боком можно.
+	 */
+	private static double[] limitBackwardSpeed(double vx, double vy, MoveInput input, MoveParams params) {
+		double forwardLength = Math.hypot(input.forwardX(), input.forwardY());
+
+		if (forwardLength == 0.0 || params.backSpeedFactor() >= 1.0 || Math.hypot(vx, vy) <= params.backSpeedMin()) {
+			return new double[] {vx, vy};
+		}
+
+		double forwardX = input.forwardX() / forwardLength;
+		double forwardY = input.forwardY() / forwardLength;
+		double along = vx * forwardX + vy * forwardY;
+
+		if (along >= 0.0) {
+			return new double[] {vx, vy};
+		}
+
+		double limit = params.maxSpeed() * params.backSpeedFactor();
+		double limitedAlong = Math.max(along, -limit);
+		double sideX = vx - forwardX * along;
+		double sideY = vy - forwardY * along;
+
+		return limitLength(sideX + forwardX * limitedAlong, sideY + forwardY * limitedAlong, params.maxSpeed());
 	}
 
 	private static MoveState clamp(double vx, double vy, double vz, boolean onGround, double maxVelocity) {

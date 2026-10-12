@@ -28,7 +28,7 @@ class SubstepLoopTest {
 	void standingPlayerIsPressedIntoGround() {
 		FakeBody body = FakeBody.onFloor();
 
-		SubstepLoop.tick(body, 0.0, 0.0, false, PARAMS, SCALE, SUBSTEPS);
+		SubstepLoop.tick(body, 0.0, 0.0, false, PARAMS, SCALE, SUBSTEPS, false);
 
 		// Каждый подшаг игрок смещается вниз на долю прижатия, иначе игра не увидит опоры.
 		assertEquals(SUBSTEPS, body.moves.size());
@@ -48,7 +48,7 @@ class SubstepLoopTest {
 		FakeBody body = FakeBody.onFloor();
 
 		for (int tick = 0; tick < 40; tick++) {
-			SubstepLoop.tick(body, 0.0, FULL_INPUT, false, PARAMS, SCALE, SUBSTEPS);
+			SubstepLoop.tick(body, 0.0, FULL_INPUT, false, PARAMS, SCALE, SUBSTEPS, false);
 		}
 
 		// Без поправки на 0,98 скорость остановилась бы на 294 u/s.
@@ -62,7 +62,7 @@ class SubstepLoopTest {
 		body.yaw = 90.0;
 
 		for (int tick = 0; tick < 40; tick++) {
-			SubstepLoop.tick(body, 0.0, FULL_INPUT, false, PARAMS, SCALE, SUBSTEPS);
+			SubstepLoop.tick(body, 0.0, FULL_INPUT, false, PARAMS, SCALE, SUBSTEPS, false);
 		}
 
 		// Поворот на 90 градусов — взгляд вдоль -x.
@@ -77,7 +77,7 @@ class SubstepLoopTest {
 		body.vx = blocksPerTick(MoveParams.BASE_SPEED);
 
 		// Ввод вбок при угле 0 направлен вдоль +x, прямо в стену.
-		SubstepLoop.tick(body, FULL_INPUT, 0.0, false, PARAMS, SCALE, SUBSTEPS);
+		SubstepLoop.tick(body, FULL_INPUT, 0.0, false, PARAMS, SCALE, SUBSTEPS, false);
 
 		// Стена обнулила скорость при перемещении, и цикл взял её из игрока, а не из своего расчёта.
 		assertEquals(0.0, body.velocityX(), EPSILON);
@@ -89,7 +89,7 @@ class SubstepLoopTest {
 		for (int substeps : new int[] {1, SUBSTEPS}) {
 			FakeBody body = FakeBody.onFloor();
 
-			SubstepLoop.tick(body, 0.0, 0.0, true, PARAMS, SCALE, substeps);
+			SubstepLoop.tick(body, 0.0, 0.0, true, PARAMS, SCALE, substeps, false);
 
 			// За тик гравитация отнимает 800 × 0,05 = 40 u/s от скорости прыжка.
 			double expected = PARAMS.jumpSpeed() - PARAMS.gravity() * UnitConversion.TICK_SECONDS;
@@ -104,7 +104,7 @@ class SubstepLoopTest {
 		FakeBody body = FakeBody.onFloor();
 		body.ceilingY = 0.0;
 
-		SubstepLoop.tick(body, 0.0, 0.0, true, PARAMS, SCALE, SUBSTEPS);
+		SubstepLoop.tick(body, 0.0, 0.0, true, PARAMS, SCALE, SUBSTEPS, false);
 
 		// Если бы прыжок повторялся на каждом подшаге, игрок, вставший на пол, прыгнул бы второй раз.
 		long upwardMoves = body.moves.stream().filter(move -> move[1] > 0.0).count();
@@ -118,7 +118,7 @@ class SubstepLoopTest {
 		FakeBody body = FakeBody.onFloor();
 		body.floor = false;
 
-		SubstepLoop.tick(body, 0.0, 0.0, false, PARAMS, SCALE, SUBSTEPS);
+		SubstepLoop.tick(body, 0.0, 0.0, false, PARAMS, SCALE, SUBSTEPS, false);
 
 		// Первый подшаг ещё прижимает к земле, его скорость в падение не переходит:
 		// падение набирает гравитацию за 2,5 подшага — половину первого и два следующих целиком.
@@ -130,7 +130,92 @@ class SubstepLoopTest {
 	@Test
 	void rejectsZeroSubsteps() {
 		assertThrows(IllegalArgumentException.class,
-				() -> SubstepLoop.tick(FakeBody.onFloor(), 0.0, 0.0, false, PARAMS, SCALE, 0));
+				() -> SubstepLoop.tick(FakeBody.onFloor(), 0.0, 0.0, false, PARAMS, SCALE, 0, false));
+	}
+
+	@Test
+	void smoothTurnMakesSubstepsCountForAirStrafe() {
+		// Замечание аудита О2. Взгляд меняется раз в тик; без плавного поворота три подшага
+		// дают ту же прибавку от стрейфа, что и один.
+		double oneStep = strafeForOneSecond(1, false);
+		double threeSteps = strafeForOneSecond(3, false);
+		double threeSmooth = strafeForOneSecond(3, true);
+
+		assertEquals(oneStep, threeSteps, 1.0);
+		assertTrue(threeSmooth > threeSteps + 10.0, "плавный поворот не усилил стрейф: " + threeSteps + " и " + threeSmooth);
+		// 300 u/s на старте, секунда стрейфа. Один шаг и три подшага без поворота: по 30 u/s вбок за тик.
+		assertEquals(328.6, oneStep, 1.0);
+		assertEquals(345.6, threeSmooth, 1.0);
+	}
+
+	@Test
+	void smoothTurnTakesShortestWayAcrossWrap() {
+		assertEquals(20.0, SubstepLoop.shortestTurn(350.0, 10.0), EPSILON);
+		assertEquals(-20.0, SubstepLoop.shortestTurn(10.0, 350.0), EPSILON);
+		assertEquals(90.0, SubstepLoop.shortestTurn(-45.0, 45.0), EPSILON);
+		assertEquals(-180.0, SubstepLoop.shortestTurn(180.0, 0.0), EPSILON);
+		assertEquals(0.0, SubstepLoop.shortestTurn(720.0, 0.0), EPSILON);
+	}
+
+	@Test
+	void smoothTurnDoesNotChangeStraightRunning() {
+		FakeBody plain = FakeBody.onFloor();
+		FakeBody smooth = FakeBody.onFloor();
+
+		for (int tick = 0; tick < 40; tick++) {
+			SubstepLoop.tick(plain, 0.0, FULL_INPUT, false, PARAMS, SCALE, SUBSTEPS, false);
+			SubstepLoop.tick(smooth, 0.0, FULL_INPUT, false, PARAMS, SCALE, SUBSTEPS, true);
+		}
+
+		assertEquals(plain.velocityZ(), smooth.velocityZ(), EPSILON);
+	}
+
+	@Test
+	void slowingBlockIsAppliedOncePerTick() {
+		// Замечание аудита О5. Замедляющий блок умножает скорость после каждого перемещения;
+		// при трёх подшагах без поправки замедление получалось бы втрое сильнее ванильного.
+		double factor = 0.4;
+		FakeBody body = FakeBody.onFloor();
+		body.slowFactor = factor;
+		// Скорость на установившемся ходу: за тик трение и разгон возвращают её к максимуму.
+		body.setVelocity(0.0, 0.0, blocksPerTick(MoveParams.BASE_SPEED));
+
+		SubstepLoop.tick(body, 0.0, FULL_INPUT, false, PARAMS, SCALE, SUBSTEPS, false);
+
+		assertEquals(MoveParams.BASE_SPEED * factor, unitsPerSecond(body.velocityZ()), 1e-6);
+	}
+
+	@Test
+	void slowingBlockDoesNotHideCollision() {
+		// Если игрок упёрся в стену на промежуточном подшаге, скорость берётся после столкновения.
+		FakeBody body = FakeBody.onFloor();
+		body.wallX = 0.05;
+		body.setVelocity(blocksPerTick(MoveParams.BASE_SPEED), 0.0, 0.0);
+
+		SubstepLoop.tick(body, 0.0, 0.0, false, PARAMS, SCALE, SUBSTEPS, false);
+
+		assertEquals(0.0, body.velocityX(), EPSILON);
+	}
+
+	/**
+	 * Идеальный стрейф в воздухе в течение секунды: ввод вбок, взгляд раз в тик поворачивается
+	 * по направлению полёта, как это делает игрок мышью. Возвращает итоговую скорость, u/s.
+	 */
+	private static double strafeForOneSecond(int substeps, boolean smoothTurn) {
+		FakeBody body = new FakeBody();
+		body.floor = false;
+		body.setVelocity(0.0, 0.0, blocksPerTick(MoveParams.BASE_SPEED));
+		// Без гравитации: проверяется только горизонтальный разгон.
+		MoveParams params = new MoveParams(10.0, 10.0, 4.0, 100.0, 0.0, 30.0, 289.0, 3500.0, MoveParams.BASE_SPEED);
+
+		for (int tick = 0; tick < 20; tick++) {
+			body.previousYaw = body.yaw;
+			// Взгляд вдоль скорости: при угле 0 это +z, положительный ввод вбок — влево от взгляда.
+			body.yaw = Math.toDegrees(Math.atan2(-body.velocityX(), body.velocityZ()));
+			SubstepLoop.tick(body, FULL_INPUT, 0.0, false, params, SCALE, substeps, smoothTurn);
+		}
+
+		return unitsPerSecond(Math.hypot(body.velocityX(), body.velocityZ()));
 	}
 
 	private static double unitsPerSecond(double blocksPerTick) {
@@ -155,6 +240,9 @@ class SubstepLoopTest {
 		private double wallX = Double.POSITIVE_INFINITY;
 		private double ceilingY = Double.POSITIVE_INFINITY;
 		private double yaw;
+		private double previousYaw;
+		private double slowFactor = 1.0;
+		private boolean bumped;
 
 		static FakeBody onFloor() {
 			FakeBody body = new FakeBody();
@@ -188,11 +276,13 @@ class SubstepLoopTest {
 		public void move(double dx, double dy, double dz) {
 			moves.add(new double[] {dx, dy, dz});
 
+			bumped = false;
 			double allowedX = dx;
 
 			if (x + dx > wallX) {
 				allowedX = wallX - x;
 				vx = 0.0;
+				bumped = true;
 			}
 
 			double allowedY = dy;
@@ -210,6 +300,10 @@ class SubstepLoopTest {
 			x += allowedX;
 			y += allowedY;
 			z += dz;
+
+			// Как замедляющий блок в игре: после каждого перемещения горизонтальная скорость умножается.
+			vx *= slowFactor;
+			vz *= slowFactor;
 		}
 
 		@Override
@@ -220,6 +314,16 @@ class SubstepLoopTest {
 		@Override
 		public double yawDegrees() {
 			return yaw;
+		}
+
+		@Override
+		public double previousYawDegrees() {
+			return previousYaw;
+		}
+
+		@Override
+		public boolean horizontalCollision() {
+			return bumped;
 		}
 	}
 }

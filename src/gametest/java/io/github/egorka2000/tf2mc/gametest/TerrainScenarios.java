@@ -20,6 +20,7 @@ final class TerrainScenarios {
 	private static final int Y = Tf2McClientGameTest.PLATFORM_Y;
 	private static final double UNITS_PER_BLOCK = 45.0;
 	private static final double TF2_SPEED = 300.0 / UNITS_PER_BLOCK;
+	private static final double TF2_JUMP = 289.0 * 289.0 / 1600.0 / UNITS_PER_BLOCK;
 
 	/** Стартовая точка игрока по z и линия препятствий перед ним. */
 	private static final double START_Z = -30.5;
@@ -42,6 +43,7 @@ final class TerrainScenarios {
 	static void run(ClientGameTestContext context, TestServerContext server, TestServerConnection connection, String where) {
 		TerrainScenarios scenarios = new TerrainScenarios(context, server, connection, where);
 
+		scenarios.heldJumpKeyJumpsOnce();
 		scenarios.slabIsSteppedOver();
 		scenarios.fullBlockStopsWalking();
 		scenarios.fullBlockIsJumpedOver();
@@ -51,6 +53,35 @@ final class TerrainScenarios {
 		scenarios.shallowWaterJumpWorks();
 		scenarios.ladderIsClimbed();
 		scenarios.clear();
+	}
+
+	// В TF2 на каждый прыжок нужно новое нажатие: удержание клавиши не даёт прыгать подряд.
+	private void heldJumpKeyJumpsOnce() {
+		build(null);
+		context.getInput().holdKey(options -> options.keyJump);
+
+		int jumps = 0;
+		boolean wasOnGround = true;
+
+		// Три секунды: без правила за это время получилось бы четыре прыжка.
+		for (int tick = 0; tick < 60; tick++) {
+			context.waitTick();
+			boolean nowOnGround = onGround();
+
+			if (wasOnGround && !nowOnGround) {
+				jumps++;
+			}
+
+			wasOnGround = nowOnGround;
+		}
+
+		context.getInput().releaseKey(options -> options.keyJump);
+		context.waitTicks(5);
+		check("удержание прыжка даёт один прыжок", jumps == 1, "прыжков: " + jumps);
+
+		// После отпускания новое нажатие снова прыгает.
+		double apex = jump(20);
+		near("новое нажатие после удержания", TF2_JUMP, apex, 0.03);
 	}
 
 	// Полублок ниже ванильной высоты шага (0,6 блока): игрок заходит на него без прыжка.
@@ -107,7 +138,9 @@ final class TerrainScenarios {
 
 		double slideSpeed = Math.abs(end.x - start.x) / ticks * 20.0;
 		near("стена не пройдена, z", OBSTACLE_Z - HALF_WIDTH, position().z, 0.02);
-		check("скольжение вдоль стены", slideSpeed > 1.0, slideSpeed + " блоков/с");
+		check("скольжение вдоль стены", slideSpeed > TF2_SPEED * 0.8, slideSpeed + " блоков/с");
+		// На земле скорость не превышает максимум класса, даже если жать в стену под углом (О13).
+		check("вдоль стены не быстрее максимума", slideSpeed <= TF2_SPEED + 0.02, slideSpeed + " блоков/с при максимуме " + TF2_SPEED);
 		measure("скорость скольжения вдоль стены под 45°", slideSpeed, "блоков/с", slideSpeed * UNITS_PER_BLOCK, "u/s");
 		agree();
 	}
@@ -164,6 +197,8 @@ final class TerrainScenarios {
 
 		double apex = jump(15);
 		check("прыжок на мелководье не потерян", apex > 0.3, "подъём " + apex + " блока");
+		// Скорость прыжка на мелководье — как у прыжка TF2, а не ванильная (О14).
+		check("прыжок на мелководье не выше прыжка TF2", apex <= TF2_JUMP + 0.05, "подъём " + apex + " блока при " + TF2_JUMP);
 		measure("высота прыжка на мелководье", apex, "блоков", apex * UNITS_PER_BLOCK, "u");
 
 		server.runCommand("fill -12 " + Y + " -36 12 " + Y + " -12 minecraft:air");

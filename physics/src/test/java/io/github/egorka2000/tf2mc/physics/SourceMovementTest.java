@@ -204,13 +204,101 @@ class SourceMovementTest {
 	@Test
 	void jumpOnLandingStepSkipsFriction() {
 		// Распрыжка: игрок приземлился быстрее максимума класса и прыгает в тот же шаг.
-		MoveState landed = new MoveState(400.0, 0.0, 0.0, true);
+		MoveState landed = new MoveState(280.0, 0.0, 0.0, true);
 
 		MoveState hop = SourceMovement.beforeMove(landed, new MoveInput(0.0, 0.0, true), SOLDIER, TF2_TICK);
 		MoveState walk = SourceMovement.beforeMove(landed, MoveInput.NONE, SOLDIER, TF2_TICK);
 
-		assertEquals(400.0, hop.horizontalSpeed());
-		assertTrue(walk.horizontalSpeed() < 400.0);
+		assertEquals(280.0, hop.horizontalSpeed(), 1e-9);
+		assertTrue(walk.horizontalSpeed() <= SOLDIER_SPEED);
+	}
+
+	@Test
+	void jumpSpeedIsLimitedToBunnyHopFactor() {
+		// Ограничение распрыжки TF2: в момент прыжка скорость не выше 1,2 максимума класса.
+		MoveState landed = new MoveState(300.0, 400.0, 0.0, true);
+		MoveState hop = SourceMovement.beforeMove(landed, new MoveInput(0.0, 0.0, true), SOLDIER, TF2_TICK);
+
+		assertEquals(SOLDIER_SPEED * 1.2, hop.horizontalSpeed(), 1e-9);
+		assertEquals(300.0 / 400.0, hop.vx() / hop.vy(), 1e-12);
+		assertFalse(hop.onGround());
+	}
+
+	@Test
+	void bunnyHopLimitCanBeDisabled() {
+		MoveParams unlimited = new MoveParams(10.0, 10.0, 4.0, 100.0, 800.0, 30.0, 289.0, 3500.0, SOLDIER_SPEED, 0.0, 0.9, 100.0);
+		MoveState hop = SourceMovement.beforeMove(new MoveState(500.0, 0.0, 0.0, true), new MoveInput(0.0, 0.0, true), unlimited, TF2_TICK);
+
+		assertEquals(500.0, hop.horizontalSpeed(), 1e-9);
+	}
+
+	@Test
+	void landingFasterThanClassSpeedIsCutToMaximum() {
+		// Приземление после взрыва без прыжка: на земле скорость сразу обрезается до максимума класса.
+		MoveState landed = new MoveState(600.0, 0.0, 0.0, true);
+		MoveState walk = SourceMovement.beforeMove(landed, FORWARD, SOLDIER, TF2_TICK);
+
+		assertEquals(SOLDIER_SPEED, walk.horizontalSpeed(), 1e-9);
+	}
+
+	@ParameterizedTest
+	@ValueSource(doubles = {TF2_TICK, SUBSTEP, MC_TICK})
+	void slidingAlongWallNeverExceedsClassSpeed(double dt) {
+		// Игрок жмёт под 45 градусов в стену, которая лежит вдоль оси x и не пускает его по y.
+		// Без потолка скорости на земле он разгонялся бы вдоль стены выше максимума класса.
+		MoveInput intoWall = MoveInput.towards(Math.PI / 4.0, false);
+		MoveState state = MoveState.REST;
+
+		for (int step = 0; step * dt < 3.0; step++) {
+			MoveState moving = SourceMovement.beforeMove(state, intoWall, SOLDIER, dt);
+			assertTrue(moving.horizontalSpeed() <= SOLDIER_SPEED + 1e-9);
+			// Стена срезает составляющую, направленную в неё.
+			state = SourceMovement.afterMove(new MoveState(moving.vx(), 0.0, 0.0, true), SOLDIER, dt);
+		}
+
+		assertTrue(state.vx() <= SOLDIER_SPEED + 1e-9, "вдоль стены быстрее максимума: " + state.vx());
+		assertTrue(state.vx() > SOLDIER_SPEED * 0.8, "вдоль стены слишком медленно: " + state.vx());
+	}
+
+	@Test
+	void backwardSpeedIsLimitedToNinetyPercent() {
+		// Взгляд вдоль +x, ввод назад.
+		MoveInput back = new MoveInput(-1.0, 0.0, 1.0, 0.0, false);
+		MoveState state = MoveState.REST;
+
+		for (int step = 0; step < 200; step++) {
+			MoveState moving = SourceMovement.beforeMove(state, back, SOLDIER, TF2_TICK);
+			assertTrue(moving.horizontalSpeed() <= SOLDIER_SPEED * 0.9 + 1e-9);
+			state = SourceMovement.afterMove(moving, SOLDIER, TF2_TICK);
+		}
+
+		assertEquals(-SOLDIER_SPEED * 0.9, state.vx(), 1e-6);
+	}
+
+	@Test
+	void sidewaysSpeedIsNotLimitedByBackwardRule() {
+		// Взгляд вдоль +x, ввод вбок: это не движение назад.
+		MoveInput side = new MoveInput(0.0, 1.0, 1.0, 0.0, false);
+		MoveState state = MoveState.REST;
+
+		for (int step = 0; step < 200; step++) {
+			state = stepOnGround(state, side, TF2_TICK);
+		}
+
+		assertEquals(SOLDIER_SPEED, state.horizontalSpeed(), 1e-6);
+	}
+
+	@Test
+	void backwardLimitDoesNotApplyToSlowMovement() {
+		// Ниже 100 u/s ограничение не действует.
+		MoveInput slowBack = new MoveInput(-0.3, 0.0, 1.0, 0.0, false);
+		MoveState state = MoveState.REST;
+
+		for (int step = 0; step < 200; step++) {
+			state = stepOnGround(state, slowBack, TF2_TICK);
+		}
+
+		assertEquals(-SOLDIER_SPEED * 0.3, state.vx(), 1e-6);
 	}
 
 	@Test
