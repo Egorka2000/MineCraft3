@@ -10,9 +10,11 @@ on:
   push:
     branches: [main]
 
-# Новый коммит в ту же ветку отменяет ещё не законченный прогон.
+# Новый коммит в ветку PR отменяет ещё не законченный прогон по ней: устаревший результат не нужен.
+# В main прогоны не отменяются и не ждут друг друга: у каждого коммита своя группа, поэтому
+# при нескольких слияниях подряд каждый коммит получает свой результат, а не отметку "cancelled".
 concurrency:
-  group: build-${{ github.ref }}
+  group: build-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: true
 
 permissions:
