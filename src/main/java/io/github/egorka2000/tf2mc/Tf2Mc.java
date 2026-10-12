@@ -5,6 +5,7 @@ import io.github.egorka2000.tf2mc.command.Tf2Commands;
 import io.github.egorka2000.tf2mc.config.ConfigManager;
 import io.github.egorka2000.tf2mc.net.Tf2Networking;
 import io.github.egorka2000.tf2mc.team.Teams;
+import io.github.egorka2000.tf2mc.weapon.Tf2Weapons;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -31,6 +32,7 @@ public class Tf2Mc implements ModInitializer {
 		Tf2Networking.register();
 		PlayerClasses.register();
 		Teams.register();
+		Tf2Weapons.register();
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> Tf2Commands.register(dispatcher));
 
 		LOGGER.info("tf2-mc загружен");

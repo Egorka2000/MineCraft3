@@ -20,6 +20,7 @@ import io.github.egorka2000.tf2mc.movement.SpeedometerToggle;
 import io.github.egorka2000.tf2mc.net.Tf2Networking;
 import io.github.egorka2000.tf2mc.team.Teams;
 import io.github.egorka2000.tf2mc.team.TfTeam;
+import io.github.egorka2000.tf2mc.weapon.Tf2Weapons;
 
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -56,6 +57,9 @@ public final class Tf2Commands {
 				.then(classCommand())
 				.then(healthCommand())
 				.then(teamCommand())
+				.then(withOptionalPlayer(
+						Commands.literal("rocket").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)),
+						(context, target) -> fireRocket(context.getSource(), target)))
 				.then(onOff("speed", Tf2Commands::setSpeedometer, target -> SpeedometerToggle.isEnabled(target.getUUID()))));
 	}
 
@@ -233,6 +237,19 @@ public final class Tf2Commands {
 
 		String whom = describeTarget(source, target);
 		source.sendSuccess(() -> Component.literal("tf2-mc: наблюдатель" + whom), true);
+		return 1;
+	}
+
+	/**
+	 * {@code /tf2 rocket [ник]} выпускает ракету из глаз игрока по направлению взгляда.
+	 * Отладочная команда, только для операторов; у игрока должен быть выбран класс.
+	 */
+	private static int fireRocket(CommandSourceStack source, ServerPlayer target) {
+		if (!Tf2Weapons.fireRocket(target)) {
+			source.sendFailure(Component.literal("tf2-mc: ракету выпускает только игрок с классом"));
+			return 0;
+		}
+
 		return 1;
 	}
 
