@@ -112,6 +112,12 @@ public class Tf2McGameTest {
 			// Игрок без прав оператора не может указывать ник, даже свой.
 			run(player.createCommandSourceStack(), "speed on " + name);
 			check(!SpeedometerToggle.isEnabled(player.getUUID()), "игрок без прав оператора применил команду с ником");
+
+			// Без слова on или off команда переключает состояние у того, кто её ввёл.
+			run(player.createCommandSourceStack(), "speed");
+			check(SpeedometerToggle.isEnabled(player.getUUID()), "команда без слова не включила спидометр");
+			run(player.createCommandSourceStack(), "speed");
+			check(!SpeedometerToggle.isEnabled(player.getUUID()), "команда без слова не выключила спидометр");
 		} finally {
 			SpeedometerToggle.forget(player.getUUID());
 			server.getPlayerList().remove(player);
