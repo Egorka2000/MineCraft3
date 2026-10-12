@@ -64,6 +64,7 @@ public final class UnitConversion {
 		double sin = Math.sin(yaw);
 		double cos = Math.cos(yaw);
 
-		return new MoveInput(strafe * cos - forward * sin, forward * cos + strafe * sin, jump);
+		// Направление взгляда — это ввод «вперёд» единичной длины: при угле 0 оно смотрит вдоль +z.
+		return new MoveInput(strafe * cos - forward * sin, forward * cos + strafe * sin, -sin, cos, jump);
 	}
 }

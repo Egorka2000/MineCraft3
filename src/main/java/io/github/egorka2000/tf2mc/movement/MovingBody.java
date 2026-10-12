@@ -34,4 +34,10 @@ public interface MovingBody {
 
 	/** Угол поворота взгляда, градусы. */
 	double yawDegrees();
+
+	/** Угол поворота взгляда на конец прошлого тика, градусы. */
+	double previousYawDegrees();
+
+	/** Упёрся ли игрок в препятствие по горизонтали при последнем перемещении. */
+	boolean horizontalCollision();
 }
