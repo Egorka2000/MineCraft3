@@ -8,10 +8,12 @@ import java.util.UUID;
 import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.tree.CommandNode;
 import io.github.egorka2000.tf2mc.Tf2Mc;
+import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
+import io.github.egorka2000.tf2mc.clazz.TfClass;
 import io.github.egorka2000.tf2mc.command.Tf2Commands;
 import io.github.egorka2000.tf2mc.config.ConfigManager;
 import io.github.egorka2000.tf2mc.config.Tf2Config;
-import io.github.egorka2000.tf2mc.movement.MovementToggle;
+import io.github.egorka2000.tf2mc.movement.SpeedometerToggle;
 import io.netty.channel.embedded.EmbeddedChannel;
 
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -25,6 +27,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.world.entity.Entity;
 
 /**
  * Серверные игровые тесты: запускают настоящий сервер с модом.
@@ -50,7 +53,7 @@ public class Tf2McGameTest {
 		CommandNode<CommandSourceStack> root = helper.getLevel().getServer().getCommands().getDispatcher().getRoot().getChild(Tf2Commands.ROOT);
 
 		if (root == null || root.getChild("reload") == null || root.getChild("config") == null
-				|| root.getChild("movement") == null || root.getChild("speed") == null) {
+				|| root.getChild("class") == null || root.getChild("speed") == null) {
 			throw new IllegalStateException("команда /" + Tf2Commands.ROOT + " не зарегистрирована полностью");
 		}
 
@@ -96,31 +99,70 @@ public class Tf2McGameTest {
 
 		try {
 			// С консоли сервера и с ником: применяется к названному игроку.
-			server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), Tf2Commands.ROOT + " movement on " + name);
-
-			if (!MovementToggle.isMovementEnabled(player.getUUID())) {
-				throw new IllegalStateException("команда с ником не применилась к игроку " + name);
-			}
+			run(server.createCommandSourceStack(), "speed on " + name);
+			check(SpeedometerToggle.isEnabled(player.getUUID()), "команда с ником не применилась к игроку " + name);
 
 			// От имени игрока и без ника: применяется к нему самому.
-			server.getCommands().performPrefixedCommand(player.createCommandSourceStack(), Tf2Commands.ROOT + " speed on");
-
-			if (!MovementToggle.isSpeedometerEnabled(player.getUUID())) {
-				throw new IllegalStateException("команда без ника не применилась к тому, кто её ввёл");
-			}
+			run(player.createCommandSourceStack(), "speed off");
+			check(!SpeedometerToggle.isEnabled(player.getUUID()), "команда без ника не применилась к тому, кто её ввёл");
 
 			// Игрок без прав оператора не может указывать ник, даже свой.
-			server.getCommands().performPrefixedCommand(player.createCommandSourceStack(), Tf2Commands.ROOT + " movement off " + name);
-
-			if (!MovementToggle.isMovementEnabled(player.getUUID())) {
-				throw new IllegalStateException("игрок без прав оператора применил команду с ником");
-			}
+			run(player.createCommandSourceStack(), "speed on " + name);
+			check(!SpeedometerToggle.isEnabled(player.getUUID()), "игрок без прав оператора применил команду с ником");
 		} finally {
-			MovementToggle.forget(player.getUUID());
+			SpeedometerToggle.forget(player.getUUID());
 			server.getPlayerList().remove(player);
 		}
 
 		helper.succeed();
+	}
+
+	// Шаг 8а: команда выдаёт класс, класс задаёт здоровье, переживает смерть и снимается командой vanilla.
+	@GameTest
+	public void classIsAssignedKeptThroughDeathAndRemoved(GameTestHelper helper) {
+		MinecraftServer server = helper.getLevel().getServer();
+		String name = "tf2mc-soldier";
+		ServerPlayer player = joinTestPlayer(helper, name);
+
+		try {
+			check(PlayerClasses.get(player).isEmpty(), "у нового игрока уже есть класс");
+			check(player.getMaxHealth() == 20.0f, "у ванильного игрока максимум здоровья " + player.getMaxHealth());
+
+			run(server.createCommandSourceStack(), "class soldier " + name);
+			check(PlayerClasses.get(player).orElse(null) == TfClass.SOLDIER, "класс не выдан");
+			check(player.getMaxHealth() == 200.0f, "максимум здоровья Soldier: " + player.getMaxHealth());
+			check(player.getHealth() == 200.0f, "здоровье после выдачи класса: " + player.getHealth());
+
+			// Игрок без прав оператора класс не меняет.
+			run(player.createCommandSourceStack(), "class vanilla");
+			check(PlayerClasses.get(player).isPresent(), "игрок без прав оператора снял себе класс");
+
+			// Смерть и перерождение: класс и здоровье класса остаются.
+			player.setHealth(50.0f);
+			player = server.getPlayerList().respawn(player, false, Entity.RemovalReason.KILLED);
+			check(PlayerClasses.get(player).orElse(null) == TfClass.SOLDIER, "класс потерян после перерождения");
+			check(player.getMaxHealth() == 200.0f, "максимум здоровья после перерождения: " + player.getMaxHealth());
+			check(player.getHealth() == 200.0f, "здоровье после перерождения: " + player.getHealth());
+
+			run(server.createCommandSourceStack(), "class vanilla " + name);
+			check(PlayerClasses.get(player).isEmpty(), "класс не снят");
+			check(player.getMaxHealth() == 20.0f, "максимум здоровья после снятия класса: " + player.getMaxHealth());
+			check(player.getHealth() == 20.0f, "здоровье после снятия класса: " + player.getHealth());
+		} finally {
+			server.getPlayerList().remove(player);
+		}
+
+		helper.succeed();
+	}
+
+	private static void run(CommandSourceStack source, String command) {
+		source.getServer().getCommands().performPrefixedCommand(source, Tf2Commands.ROOT + " " + command);
+	}
+
+	private static void check(boolean condition, String message) {
+		if (!condition) {
+			throw new IllegalStateException(message);
+		}
 	}
 
 	/** Подключает к серверу тестового игрока без настоящего клиента: его видно в списке игроков по нику. */

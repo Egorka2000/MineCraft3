@@ -19,7 +19,7 @@ import net.minecraft.world.phys.Vec3;
 final class TerrainScenarios {
 	private static final int Y = Tf2McClientGameTest.PLATFORM_Y;
 	private static final double UNITS_PER_BLOCK = 45.0;
-	private static final double TF2_SPEED = 300.0 / UNITS_PER_BLOCK;
+	private static final double TF2_SPEED = 240.0 / UNITS_PER_BLOCK;
 	private static final double TF2_JUMP = 289.0 * 289.0 / 1600.0 / UNITS_PER_BLOCK;
 
 	/** Стартовая точка игрока по z и линия препятствий перед ним. */

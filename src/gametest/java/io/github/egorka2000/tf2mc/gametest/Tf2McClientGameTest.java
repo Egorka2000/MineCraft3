@@ -28,8 +28,8 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 
 	/** Ванильная скорость ходьбы, блоков в секунду. */
 	private static final double VANILLA_WALK = 4.317;
-	/** Временная скорость движения TF2 до появления классов: 300 u/s. */
-	private static final double TF2_SPEED = 300.0 / UNITS_PER_BLOCK;
+	/** Скорость Soldier: 240 u/s. */
+	private static final double TF2_SPEED = 240.0 / UNITS_PER_BLOCK;
 	/** Высота прыжка TF2: 289² / (2 * 800) юнитов. */
 	private static final double TF2_JUMP = 289.0 * 289.0 / 1600.0 / UNITS_PER_BLOCK;
 
@@ -56,10 +56,14 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		assertNear(where + ": ванильная скорость", VANILLA_WALK, walkSpeed(context), 0.15);
 
 		resetPlayer(context, server, connection);
-		server.runCommand("execute as @a run tf2 movement on");
+		server.runCommand("execute as @a run tf2 class soldier");
 		connection.waitForClientboundPackets();
+		context.waitTicks(2);
 
-		assertNear(where + ": скорость TF2", TF2_SPEED, walkSpeed(context), 0.1);
+		// Класс и его здоровье дошли до клиента.
+		assertNear(where + ": максимум здоровья Soldier на клиенте", 200.0, clientMaxHealth(context), 0.001);
+
+		assertNear(where + ": скорость Soldier", TF2_SPEED, walkSpeed(context), 0.1);
 		assertStopsByFriction(context, where);
 		assertServerAgrees(context, server, connection, where);
 
@@ -90,9 +94,11 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		connection.waitForClientboundPackets();
 
 		resetPlayer(context, server, connection);
-		server.runCommand("execute as @a run tf2 movement off");
+		server.runCommand("execute as @a run tf2 class vanilla");
 		connection.waitForClientboundPackets();
-		assertNear(where + ": ванильная скорость после выключения", VANILLA_WALK, walkSpeed(context), 0.15);
+		context.waitTicks(2);
+		assertNear(where + ": максимум здоровья после снятия класса", 20.0, clientMaxHealth(context), 0.001);
+		assertNear(where + ": ванильная скорость после снятия класса", VANILLA_WALK, walkSpeed(context), 0.15);
 	}
 
 	/** Ровная каменная площадка высоко над миром: рельеф и вода на замеры не влияют. */
@@ -208,6 +214,10 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		} catch (IOException e) {
 			throw new IllegalStateException("не удалось подменить файл настроек", e);
 		}
+	}
+
+	private static double clientMaxHealth(ClientGameTestContext context) {
+		return context.computeOnClient(client -> (double) client.player.getMaxHealth());
 	}
 
 	static Vec3 position(ClientGameTestContext context) {

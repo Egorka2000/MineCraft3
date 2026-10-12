@@ -20,8 +20,8 @@ class MovementSyncPayloadTest {
 	@Test
 	void payloadSurvivesEncodingAndDecoding() {
 		for (MovementSyncPayload payload : new MovementSyncPayload[] {
-			new MovementSyncPayload(true, false, CUSTOM),
-			new MovementSyncPayload(false, true, Tf2Config.DEFAULT),
+			new MovementSyncPayload(true, CUSTOM),
+			new MovementSyncPayload(false, Tf2Config.DEFAULT),
 		}) {
 			FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 			MovementSyncPayload.CODEC.encode(buffer, payload);
@@ -35,7 +35,6 @@ class MovementSyncPayloadTest {
 	void invalidSettingsFromNetworkAreRejected() {
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 		buffer.writeBoolean(true);
-		buffer.writeBoolean(false);
 
 		for (int i = 0; i < 8; i++) {
 			buffer.writeDouble(1.0);

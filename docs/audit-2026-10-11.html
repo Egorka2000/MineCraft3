@@ -145,7 +145,7 @@ footer { max-width: 720px; margin: 32px auto; padding: 0 16px 40px; color: var(-
     <p>Мод проверялся только в среде разработки. Файл <code>tf2mc-0.1.0.jar</code>, который я вам прислал, в настоящем лаунчере не запускал никто.</p>
     <h3>Как устранить</h3>
     <ol>
-      <li><b>Быстро, от вас:</b> положить jar и Fabric API в папку <code>mods</code> Minecraft 26.3 с Fabric Loader, зайти в мир, выполнить <code>/tf2 movement on</code>. Пять минут — и ответ есть.</li>
+      <li><b>Быстро, от вас:</b> положить jar и Fabric API в папку <code>mods</code> Minecraft 26.3 с Fabric Loader, зайти в мир, выполнить <code>/tf2 class soldier</code>. Пять минут — и ответ есть.</li>
       <li><b>Надолго, от меня:</b> добавить в сборку штатную задачу Loom, которая поднимает настоящий сервер с готовым jar. Она пойдёт в CI и будет ловить ошибки упаковки на каждом PR.</li>
     </ol>
     <div class="dep"><b>Связи.</b> Параллельная задача T1.8. Ни от чего не зависит. Сделать до того, как jar уйдёт другим игрокам.</div>
@@ -361,8 +361,8 @@ footer { max-width: 720px; margin: 32px auto; padding: 0 16px 40px; color: var(-
   <tr><td class="n">6а</td><td>Связка физики с игрой под юнит-тестами</td><td>О1, первая часть</td><td class="n">готово</td></tr>
   <tr><td class="n">6б</td><td>Клиентский тест на ступеньках, стенах, воде</td><td>О3</td><td class="n">готово</td></tr>
   <tr><td class="n">7</td><td>Подшаги и стрейф, правила TF2 для земли и прыжка</td><td>О2, О5, О13, О14</td><td class="n">готово</td></tr>
-  <tr><td class="n">8а</td><td>Класс игрока: хранение, команды, скорость и здоровье</td><td>—</td><td class="n">следующий</td></tr>
-  <tr><td class="n">8б</td><td>Правила класса, оверхил, показ здоровья</td><td>О7</td><td class="n">ждёт</td></tr>
+  <tr><td class="n">8а</td><td>Класс игрока: хранение, команды, скорость и здоровье</td><td>—</td><td class="n">готово</td></tr>
+  <tr><td class="n">8б</td><td>Правила класса, оверхил, показ здоровья</td><td>О7</td><td class="n">следующий</td></tr>
   <tr><td class="n">∥</td><td>Параллельные задачи</td><td>О1 (CI), О4, О9</td><td class="n">ждёт</td></tr>
   <tr><td class="n">9</td><td>Ракета и ракетный прыжок</td><td>—</td><td class="n">ждёт</td></tr>
   <tr><td class="n">—</td><td>Веха 1: прототип</td><td>—</td><td class="n">ждёт</td></tr>
@@ -374,9 +374,7 @@ footer { max-width: 720px; margin: 32px auto; padding: 0 16px 40px; color: var(-
 <h2>Что осталось</h2>
 
 <ol class="waves">
-  <li><b class="w">Шаг 8а — следующий</b><span class="when">задачи T2.1, T2.2</span>
-    <ul><li>Класс Soldier: хранение через Attachment API, команды <code>/tf2 class soldier</code> и <code>/tf2 class vanilla</code></li><li>Скорость 240 u/s и здоровье 200; временная команда <code>/tf2 movement</code> убирается</li></ul></li>
-  <li><b class="w">Шаг 8б</b><span class="when">задачи T2.4, T2.5</span>
+  <li><b class="w">Шаг 8б — следующий</b><span class="when">задачи T2.4, T2.5</span>
     <ul><li>О7 — бег отключён, при Плавном падении ванильное движение</li><li>Урон от падения по TF2, без сытости и ванильной регенерации</li><li>Оверхил и команда <code>/tf2 health</code>, число HP вместо сердец</li></ul></li>
   <li><b class="w">Параллельно</b><span class="when">задачи T1.7–T1.9, ничего не блокируют</span>
     <ul><li>О1 — запуск клиентского теста в CI</li><li>О4 — проверка готового jar настоящим сервером в CI</li><li>О9 — закрепление версии Loom, после вашего согласия</li></ul></li>
@@ -390,7 +388,7 @@ footer { max-width: 720px; margin: 32px auto; padding: 0 16px 40px; color: var(-
 <div class="tablewrap">
 <table>
   <tr><th>Что</th><th>Сколько времени</th><th>Зачем</th></tr>
-  <tr><td>Поставить jar в обычный Minecraft 26.3 и включить <code>/tf2 movement on</code></td><td class="n">5 минут</td><td>О4: работает ли мод вне среды разработки</td></tr>
+  <tr><td>Поставить jar в обычный Minecraft 26.3 и включить <code>/tf2 class soldier</code></td><td class="n">5 минут</td><td>О4: работает ли мод вне среды разработки</td></tr>
   <tr><td>Побегать и попрыгать, описать ощущения</td><td class="n">10 минут</td><td>Единственная проверка, которую нельзя автоматизировать</td></tr>
   <tr><td>Замерить высоту прыжка в TF2 через <code>cl_showpos 1</code></td><td class="n">2 минуты</td><td>О8: 50 или 52 u</td></tr>
   <tr><td>Решить, закреплять ли версию Loom</td><td class="n">ответ да/нет</td><td>О9</td></tr>
