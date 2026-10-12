@@ -1,5 +1,7 @@
 package io.github.egorka2000.tf2mc.command;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Predicate;
 
 import com.mojang.brigadier.CommandDispatcher;
@@ -161,8 +163,9 @@ public final class Tf2Commands {
 	}
 
 	/**
-	 * {@code /tf2 team} показывает свою команду; {@code /tf2 team red|blu|spectator|random [ник]}
-	 * меняет её. Свою команду выбирает любой игрок, чужую назначает оператор.
+	 * {@code /tf2 team} показывает свою команду и составы команд;
+	 * {@code /tf2 team red|blu|spectator|random [ник]} меняет команду. Свою команду выбирает любой
+	 * игрок, чужую назначает оператор. Нейтральную команду выбрать нельзя: в неё попадают при входе.
 	 */
 	private static LiteralArgumentBuilder<CommandSourceStack> teamCommand() {
 		LiteralArgumentBuilder<CommandSourceStack> command = Commands.literal("team")
@@ -177,10 +180,34 @@ public final class Tf2Commands {
 				.then(withOptionalPlayer(Commands.literal(TfTeam.SPECTATOR_ID), (context, target) -> spectate(context.getSource(), target)));
 	}
 
-	private static int showTeam(CommandSourceStack source) throws CommandSyntaxException {
-		String name = Teams.get(source.getPlayerOrException()).map(TfTeam::id).orElse("нет");
-		source.sendSuccess(() -> Component.literal("tf2-mc: ваша команда — " + name), false);
+	/** Своя команда и составы команд. С консоли сервера — только составы: своей команды у неё нет. */
+	private static int showTeam(CommandSourceStack source) {
+		List<String> lines = new ArrayList<>();
+		ServerPlayer self = source.getPlayer();
+
+		if (self != null) {
+			lines.add("tf2-mc: ваша команда — " + describeTeam(self));
+		}
+
+		for (TfTeam team : TfTeam.values()) {
+			lines.add(roster(team.id(), Teams.members(source.getServer(), team)));
+		}
+
+		lines.add(roster("нейтральные", Teams.neutralMembers(source.getServer())));
+		source.sendSuccess(() -> Component.literal(String.join("\n", lines)), false);
 		return 1;
+	}
+
+	private static String describeTeam(ServerPlayer player) {
+		if (Teams.isNeutral(player)) {
+			return "нейтральная";
+		}
+
+		return Teams.get(player).map(TfTeam::id).orElse("наблюдатель");
+	}
+
+	private static String roster(String name, List<String> players) {
+		return name + " (" + players.size() + ")" + (players.isEmpty() ? "" : ": " + String.join(", ", players));
 	}
 
 	/**

@@ -3,6 +3,7 @@ package io.github.egorka2000.tf2mc.gametest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.List;
 import java.util.UUID;
 
 import com.mojang.authlib.GameProfile;
@@ -284,14 +285,26 @@ public class Tf2McGameTest {
 				player.setGameMode(GameType.SURVIVAL);
 			}
 
-			check(Teams.get(first).isEmpty(), "у нового игрока уже есть команда");
+			// Вошедший в мир игрок без команды — нейтральный: не ранит других игроков, и они не ранят его.
+			check(Teams.isNeutral(first) && Teams.isNeutral(second), "вошедший игрок не стал нейтральным");
+			check(Teams.get(first).isEmpty(), "у нейтрального игрока есть команда");
+			check(!hit(level, first, second, 2.0f), "урон между нейтральными прошёл");
 
-			// Без команд урон проходит.
-			check(hit(level, first, second, 2.0f), "без команд урон не прошёл");
+			// Выбрать нейтральную команду нельзя.
+			run(first.createCommandSourceStack(), "team neutral");
 
 			// Свою команду выбирает сам игрок, без прав оператора.
 			run(first.createCommandSourceStack(), "team red");
 			check(Teams.get(first).orElse(null) == TfTeam.RED, "игрок не вступил в красную команду");
+			check(!Teams.isNeutral(first), "игрок с командой остался нейтральным");
+
+			// Игрок с командой и нейтральный друг друга не ранят.
+			check(!hit(level, first, second, 2.0f), "игрок с командой ранил нейтрального");
+			check(!hit(level, second, first, 2.0f), "нейтральный ранил игрока с командой");
+
+			// Составы команд.
+			check(Teams.members(server, TfTeam.RED).equals(List.of("tf2mc-team-a")), "состав красных: " + Teams.members(server, TfTeam.RED));
+			check(Teams.neutralMembers(server).contains("tf2mc-team-b"), "нейтрального нет в списке: " + Teams.neutralMembers(server));
 
 			// Чужую команду игрок без прав оператора не назначает.
 			run(first.createCommandSourceStack(), "team red tf2mc-team-b");
@@ -311,7 +324,7 @@ public class Tf2McGameTest {
 
 			// Наблюдатель выходит из команды; при возвращении получает прежний режим игры.
 			run(second.createCommandSourceStack(), "team spectator");
-			check(Teams.get(second).isEmpty(), "наблюдатель остался в команде");
+			check(Teams.get(second).isEmpty() && !Teams.isNeutral(second), "наблюдатель остался в команде");
 			check(second.gameMode() == GameType.SPECTATOR, "режим наблюдателя не включён: " + second.gameMode());
 			run(second.createCommandSourceStack(), "team blu");
 			check(Teams.get(second).orElse(null) == TfTeam.BLU, "наблюдатель не вернулся в команду");
