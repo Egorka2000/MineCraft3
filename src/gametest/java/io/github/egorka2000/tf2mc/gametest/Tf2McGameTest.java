@@ -15,6 +15,8 @@ import io.github.egorka2000.tf2mc.command.Tf2Commands;
 import io.github.egorka2000.tf2mc.config.ConfigManager;
 import io.github.egorka2000.tf2mc.config.Tf2Config;
 import io.github.egorka2000.tf2mc.movement.SpeedometerToggle;
+import io.github.egorka2000.tf2mc.team.Teams;
+import io.github.egorka2000.tf2mc.team.TfTeam;
 import io.netty.channel.embedded.EmbeddedChannel;
 
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -56,7 +58,7 @@ public class Tf2McGameTest {
 		CommandNode<CommandSourceStack> root = helper.getLevel().getServer().getCommands().getDispatcher().getRoot().getChild(Tf2Commands.ROOT);
 
 		if (root == null || root.getChild("reload") == null || root.getChild("config") == null
-				|| root.getChild("class") == null || root.getChild("speed") == null) {
+				|| root.getChild("class") == null || root.getChild("team") == null || root.getChild("speed") == null) {
 			throw new IllegalStateException("команда /" + Tf2Commands.ROOT + " не зарегистрирована полностью");
 		}
 
@@ -265,6 +267,75 @@ public class Tf2McGameTest {
 		}
 
 		helper.succeed();
+	}
+
+	// Шаг 8в: команды игроков. Свои друг друга не ранят, чужие ранят; наблюдатель и возврат режима.
+	@GameTest
+	public void teamsBlockFriendlyFire(GameTestHelper helper) {
+		MinecraftServer server = helper.getLevel().getServer();
+		ServerLevel level = helper.getLevel();
+		ServerPlayer first = joinTestPlayer(helper, "tf2mc-team-a");
+		ServerPlayer second = joinTestPlayer(helper, "tf2mc-team-b");
+
+		try {
+			for (ServerPlayer player : new ServerPlayer[] {first, second}) {
+				// Пока сервер не считает клиент загрузившимся, игрок неуязвим; в творческом режиме тоже.
+				player.connection.handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
+				player.setGameMode(GameType.SURVIVAL);
+			}
+
+			check(Teams.get(first).isEmpty(), "у нового игрока уже есть команда");
+
+			// Без команд урон проходит.
+			check(hit(level, first, second, 2.0f), "без команд урон не прошёл");
+
+			// Свою команду выбирает сам игрок, без прав оператора.
+			run(first.createCommandSourceStack(), "team red");
+			check(Teams.get(first).orElse(null) == TfTeam.RED, "игрок не вступил в красную команду");
+
+			// Чужую команду игрок без прав оператора не назначает.
+			run(first.createCommandSourceStack(), "team red tf2mc-team-b");
+			check(Teams.get(second).isEmpty(), "игрок без прав оператора назначил команду другому");
+
+			// random выбирает команду, где меньше игроков: в красной один, в синей никого.
+			run(second.createCommandSourceStack(), "team random");
+			check(Teams.get(second).orElse(null) == TfTeam.BLU, "random выбрал не меньшую команду");
+
+			// Разные команды: урон проходит.
+			check(hit(level, first, second, 4.0f), "урон по чужой команде не прошёл");
+
+			// Одна команда: урона нет.
+			run(server.createCommandSourceStack(), "team red tf2mc-team-b");
+			check(Teams.get(second).orElse(null) == TfTeam.RED, "оператор не назначил команду");
+			check(!hit(level, first, second, 8.0f), "урон по своей команде прошёл");
+
+			// Наблюдатель выходит из команды; при возвращении получает прежний режим игры.
+			run(second.createCommandSourceStack(), "team spectator");
+			check(Teams.get(second).isEmpty(), "наблюдатель остался в команде");
+			check(second.gameMode() == GameType.SPECTATOR, "режим наблюдателя не включён: " + second.gameMode());
+			run(second.createCommandSourceStack(), "team blu");
+			check(Teams.get(second).orElse(null) == TfTeam.BLU, "наблюдатель не вернулся в команду");
+			check(second.gameMode() == GameType.SURVIVAL, "прежний режим игры не возвращён: " + second.gameMode());
+		} finally {
+			for (ServerPlayer player : new ServerPlayer[] {first, second}) {
+				server.getScoreboard().removePlayerFromTeam(player.getScoreboardName());
+				server.getPlayerList().remove(player);
+			}
+		}
+
+		helper.succeed();
+	}
+
+	/**
+	 * Первый игрок бьёт второго; возвращает, уменьшилось ли здоровье второго.
+	 *
+	 * @param damage урон; после удара игра полсекунды пропускает по той же цели только больший урон,
+	 *               поэтому каждый следующий удар в тесте сильнее предыдущего
+	 */
+	private static boolean hit(ServerLevel level, ServerPlayer attacker, ServerPlayer target, float damage) {
+		target.setHealth(target.getMaxHealth());
+		target.hurtServer(level, attacker.damageSources().playerAttack(attacker), damage);
+		return target.getHealth() < target.getMaxHealth();
 	}
 
 	private static void run(CommandSourceStack source, String command) {

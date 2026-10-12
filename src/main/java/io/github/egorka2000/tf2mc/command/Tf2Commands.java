@@ -16,6 +16,8 @@ import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
 import io.github.egorka2000.tf2mc.clazz.TfClass;
 import io.github.egorka2000.tf2mc.movement.SpeedometerToggle;
 import io.github.egorka2000.tf2mc.net.Tf2Networking;
+import io.github.egorka2000.tf2mc.team.Teams;
+import io.github.egorka2000.tf2mc.team.TfTeam;
 
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -51,6 +53,7 @@ public final class Tf2Commands {
 						.executes(context -> reloadConfig(context.getSource())))
 				.then(classCommand())
 				.then(healthCommand())
+				.then(teamCommand())
 				.then(onOff("speed", Tf2Commands::setSpeedometer, target -> SpeedometerToggle.isEnabled(target.getUUID()))));
 	}
 
@@ -155,6 +158,55 @@ public final class Tf2Commands {
 		String whom = describeTarget(source, target);
 		source.sendSuccess(() -> Component.literal("tf2-mc: здоровье " + result + whom), true);
 		return result;
+	}
+
+	/**
+	 * {@code /tf2 team} показывает свою команду; {@code /tf2 team red|blu|spectator|random [ник]}
+	 * меняет её. Свою команду выбирает любой игрок, чужую назначает оператор.
+	 */
+	private static LiteralArgumentBuilder<CommandSourceStack> teamCommand() {
+		LiteralArgumentBuilder<CommandSourceStack> command = Commands.literal("team")
+				.executes(context -> showTeam(context.getSource()));
+
+		for (TfTeam team : TfTeam.values()) {
+			command.then(withOptionalPlayer(Commands.literal(team.id()), (context, target) -> joinTeam(context.getSource(), target, team)));
+		}
+
+		return command
+				.then(withOptionalPlayer(Commands.literal(TfTeam.RANDOM_ID), (context, target) -> joinTeam(context.getSource(), target, null)))
+				.then(withOptionalPlayer(Commands.literal(TfTeam.SPECTATOR_ID), (context, target) -> spectate(context.getSource(), target)));
+	}
+
+	private static int showTeam(CommandSourceStack source) throws CommandSyntaxException {
+		String name = Teams.get(source.getPlayerOrException()).map(TfTeam::id).orElse("нет");
+		source.sendSuccess(() -> Component.literal("tf2-mc: ваша команда — " + name), false);
+		return 1;
+	}
+
+	/**
+	 * @param team команда; {@code null} — та, где меньше игроков
+	 */
+	private static int joinTeam(CommandSourceStack source, ServerPlayer target, TfTeam team) {
+		TfTeam joined = team;
+
+		if (joined == null) {
+			joined = Teams.joinRandom(target);
+		} else {
+			Teams.join(target, joined);
+		}
+
+		String what = "tf2-mc: команда " + joined.id();
+		String whom = describeTarget(source, target);
+		source.sendSuccess(() -> Component.literal(what + whom), true);
+		return 1;
+	}
+
+	private static int spectate(CommandSourceStack source, ServerPlayer target) {
+		Teams.spectate(target);
+
+		String whom = describeTarget(source, target);
+		source.sendSuccess(() -> Component.literal("tf2-mc: наблюдатель" + whom), true);
+		return 1;
 	}
 
 	private static int setSpeedometer(CommandSourceStack source, ServerPlayer target, boolean enabled) {
