@@ -3,7 +3,9 @@
 	"package": "io.github.egorka2000.tf2mc.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"mixins": [
-		"LivingEntityMixin"
+		"FoodDataMixin",
+		"LivingEntityMixin",
+		"ServerPlayerMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

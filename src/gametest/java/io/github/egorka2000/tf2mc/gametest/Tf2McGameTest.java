@@ -8,6 +8,7 @@ import java.util.UUID;
 import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.tree.CommandNode;
 import io.github.egorka2000.tf2mc.Tf2Mc;
+import io.github.egorka2000.tf2mc.clazz.ClassHealth;
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
 import io.github.egorka2000.tf2mc.clazz.TfClass;
 import io.github.egorka2000.tf2mc.command.Tf2Commands;
@@ -23,11 +24,13 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.network.protocol.game.ServerboundPlayerLoadedPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.GameType;
 
 /**
  * Серверные игровые тесты: запускают настоящий сервер с модом.
@@ -148,6 +151,99 @@ public class Tf2McGameTest {
 			check(PlayerClasses.get(player).isEmpty(), "класс не снят");
 			check(player.getMaxHealth() == 20.0f, "максимум здоровья после снятия класса: " + player.getMaxHealth());
 			check(player.getHealth() == 20.0f, "здоровье после снятия класса: " + player.getHealth());
+		} finally {
+			server.getPlayerList().remove(player);
+		}
+
+		helper.succeed();
+	}
+
+	@GameTest
+	public void classFollowsTf2HealthRules(GameTestHelper helper) {
+		MinecraftServer server = helper.getLevel().getServer();
+		String name = "tf2mc-health";
+		ServerPlayer player = joinTestPlayer(helper, name);
+
+		try {
+			// У ванильного игрока оверхила нет, бег работает.
+			run(server.createCommandSourceStack(), "health set 300 " + name);
+			check(ClassHealth.total(player) == 20.0f, "здоровье ванильного игрока: " + ClassHealth.total(player));
+			player.setSprinting(true);
+			check(player.isSprinting(), "ванильный игрок не бежит");
+			player.setSprinting(false);
+
+			run(server.createCommandSourceStack(), "class soldier " + name);
+
+			// Бега нет.
+			player.setSprinting(true);
+			check(!player.isSprinting(), "игрок с классом бежит");
+
+			// Урон от падения: 5 блоков — это 600 u/s, ниже порога; 10 блоков — 849 u/s,
+			// 14,1% от 200 HP с разбросом 20%, то есть от 22 до 33.
+			check(ClassHealth.fallDamage(player, 5.0, 1.0f).orElse(-1) == 0, "урон от падения с 5 блоков");
+
+			for (int i = 0; i < 50; i++) {
+				int damage = ClassHealth.fallDamage(player, 10.0, 1.0f).orElse(-1);
+				check(damage >= 22 && damage <= 33, "урон от падения с 10 блоков: " + damage);
+			}
+
+			// То же через игру: падение с 10 блоков снимает столько же, а не ванильные 7.
+			// Пока сервер не считает клиент загрузившимся, игрок неуязвим.
+			player.connection.handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
+			// В творческом режиме урона от падения нет вовсе.
+			player.setGameMode(GameType.SURVIVAL);
+			player.causeFallDamage(10.0, 1.0f, player.damageSources().fall());
+			check(player.getHealth() >= 200.0f - 33.0f && player.getHealth() <= 200.0f - 22.0f, "здоровье после падения с 10 блоков: " + player.getHealth());
+
+			// Сытость не расходуется, здоровье само не восстанавливается.
+			player.setHealth(100.0f);
+			player.getFoodData().setFoodLevel(10);
+			player.getFoodData().addExhaustion(40.0f);
+
+			for (int i = 0; i < 200; i++) {
+				player.getFoodData().tick(player);
+			}
+
+			check(player.getFoodData().getFoodLevel() == 10, "сытость изменилась: " + player.getFoodData().getFoodLevel());
+			player.getFoodData().setFoodLevel(20);
+			player.getFoodData().setSaturation(20.0f);
+
+			for (int i = 0; i < 200; i++) {
+				player.getFoodData().tick(player);
+			}
+
+			check(player.getHealth() == 100.0f, "здоровье восстановилось само: " + player.getHealth());
+
+			// Оверхил: не больше 150% максимума.
+			run(server.createCommandSourceStack(), "health set 250 " + name);
+			check(player.getHealth() == 200.0f && player.getAbsorptionAmount() == 50.0f, "здоровье 250: " + player.getHealth() + " + " + player.getAbsorptionAmount());
+			run(server.createCommandSourceStack(), "health add 500 " + name);
+			check(ClassHealth.total(player) == 300.0f, "предел оверхила: " + ClassHealth.total(player));
+
+			// Полный оверхил спадает за 15 секунд: за секунду уходит 100 / 15.
+			for (int i = 0; i < 20; i++) {
+				ClassHealth.tickOverheal(server);
+			}
+
+			check(Math.abs(player.getAbsorptionAmount() - (100.0f - 100.0f / 15.0f)) < 0.01f, "оверхил через секунду: " + player.getAbsorptionAmount());
+
+			for (int i = 0; i < 20 * 15; i++) {
+				ClassHealth.tickOverheal(server);
+			}
+
+			check(ClassHealth.total(player) == 200.0f, "здоровье после затухания оверхила: " + ClassHealth.total(player));
+
+			run(server.createCommandSourceStack(), "health add -150 " + name);
+			check(ClassHealth.total(player) == 50.0f, "здоровье после вычитания: " + ClassHealth.total(player));
+
+			// Игрок без прав оператора здоровье не меняет.
+			run(player.createCommandSourceStack(), "health set 200");
+			check(ClassHealth.total(player) == 50.0f, "игрок без прав оператора изменил себе здоровье");
+
+			// Снятие класса убирает и предел оверхила.
+			run(server.createCommandSourceStack(), "health set 300 " + name);
+			run(server.createCommandSourceStack(), "class vanilla " + name);
+			check(ClassHealth.total(player) == 20.0f, "здоровье после снятия класса: " + ClassHealth.total(player));
 		} finally {
 			server.getPlayerList().remove(player);
 		}

@@ -68,7 +68,8 @@ public final class Tf2Travel {
 				&& !player.isSpectator()
 				&& !player.isPassenger()
 				&& !player.onClimbable()
-				&& !player.hasEffect(MobEffects.LEVITATION);
+				&& !player.hasEffect(MobEffects.LEVITATION)
+				&& !player.hasEffect(MobEffects.SLOW_FALLING);
 	}
 
 	/**

@@ -1,12 +1,15 @@
 package io.github.egorka2000.tf2mc.command;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.builder.ArgumentBuilder;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.config.ConfigManager;
 import io.github.egorka2000.tf2mc.config.Tf2Config;
+import io.github.egorka2000.tf2mc.clazz.ClassHealth;
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
 import io.github.egorka2000.tf2mc.clazz.TfClass;
 import io.github.egorka2000.tf2mc.movement.SpeedometerToggle;
@@ -31,6 +34,9 @@ public final class Tf2Commands {
 	/** Имя необязательного аргумента с ником игрока. */
 	public static final String PLAYER = "player";
 
+	/** Имя аргумента с количеством здоровья. */
+	public static final String AMOUNT = "amount";
+
 	private Tf2Commands() {
 	}
 
@@ -42,6 +48,7 @@ public final class Tf2Commands {
 						.requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
 						.executes(context -> reloadConfig(context.getSource())))
 				.then(classCommand())
+				.then(healthCommand())
 				.then(onOff("speed", Tf2Commands::setSpeedometer)));
 	}
 
@@ -52,13 +59,13 @@ public final class Tf2Commands {
 
 	@FunctionalInterface
 	private interface PlayerAction {
-		int apply(CommandSourceStack source, ServerPlayer target) throws CommandSyntaxException;
+		int apply(CommandContext<CommandSourceStack> context, ServerPlayer target) throws CommandSyntaxException;
 	}
 
 	private static LiteralArgumentBuilder<CommandSourceStack> onOff(String name, Switch action) {
 		return Commands.literal(name)
-				.then(withOptionalPlayer(Commands.literal("on"), (source, target) -> action.apply(source, target, true)))
-				.then(withOptionalPlayer(Commands.literal("off"), (source, target) -> action.apply(source, target, false)));
+				.then(withOptionalPlayer(Commands.literal("on"), (context, target) -> action.apply(context.getSource(), target, true)))
+				.then(withOptionalPlayer(Commands.literal("off"), (context, target) -> action.apply(context.getSource(), target, false)));
 	}
 
 	/**
@@ -67,10 +74,10 @@ public final class Tf2Commands {
 	 */
 	static <T extends ArgumentBuilder<CommandSourceStack, T>> T withOptionalPlayer(T command, PlayerAction action) {
 		return command
-				.executes(context -> action.apply(context.getSource(), context.getSource().getPlayerOrException()))
+				.executes(context -> action.apply(context, context.getSource().getPlayerOrException()))
 				.then(Commands.argument(PLAYER, EntityArgument.player())
 						.requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
-						.executes(context -> action.apply(context.getSource(), EntityArgument.getPlayer(context, PLAYER))));
+						.executes(context -> action.apply(context, EntityArgument.getPlayer(context, PLAYER))));
 	}
 
 	/** Для сообщения об успехе: «себе» или имя игрока, к которому применена команда. */
@@ -89,12 +96,12 @@ public final class Tf2Commands {
 		for (TfClass tfClass : TfClass.values()) {
 			command.then(withOptionalPlayer(
 					Commands.literal(tfClass.id()).requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)),
-					(source, target) -> setClass(source, target, tfClass)));
+					(context, target) -> setClass(context.getSource(), target, tfClass)));
 		}
 
 		return command.then(withOptionalPlayer(
 				Commands.literal(TfClass.VANILLA_ID).requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)),
-				(source, target) -> setClass(source, target, null)));
+				(context, target) -> setClass(context.getSource(), target, null)));
 	}
 
 	private static int showClass(CommandSourceStack source) throws CommandSyntaxException {
@@ -113,6 +120,31 @@ public final class Tf2Commands {
 		String what = tfClass == null ? "tf2-mc: класс снят" : "tf2-mc: выдан класс " + tfClass.id();
 		source.sendSuccess(() -> Component.literal(what + whom), true);
 		return 1;
+	}
+
+	/**
+	 * {@code /tf2 health set <число> [ник]} выставляет здоровье, {@code /tf2 health add <число> [ник]}
+	 * прибавляет его; отрицательное число отнимает. Всё, что выше максимума класса, становится
+	 * оверхилом. Отладочная команда, только для операторов.
+	 */
+	private static LiteralArgumentBuilder<CommandSourceStack> healthCommand() {
+		return Commands.literal("health")
+				.requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+				.then(Commands.literal("set").then(withOptionalPlayer(
+						Commands.argument(AMOUNT, IntegerArgumentType.integer(1)),
+						(context, target) -> setHealth(context.getSource(), target, IntegerArgumentType.getInteger(context, AMOUNT)))))
+				.then(Commands.literal("add").then(withOptionalPlayer(
+						Commands.argument(AMOUNT, IntegerArgumentType.integer()),
+						(context, target) -> setHealth(
+								context.getSource(), target, ClassHealth.total(target) + IntegerArgumentType.getInteger(context, AMOUNT)))));
+	}
+
+	private static int setHealth(CommandSourceStack source, ServerPlayer target, float total) {
+		int result = Math.round(ClassHealth.setTotal(target, total));
+
+		String whom = describeTarget(source, target);
+		source.sendSuccess(() -> Component.literal("tf2-mc: здоровье " + result + whom), true);
+		return result;
 	}
 
 	private static int setSpeedometer(CommandSourceStack source, ServerPlayer target, boolean enabled) {
