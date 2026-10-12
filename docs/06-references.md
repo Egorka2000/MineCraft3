@@ -59,5 +59,7 @@
 - [Replicating Source Engine Air Strafing in Unity](https://www.theseus.fi/bitstream/handle/10024/507593/Peltola_Mikko.pdf) — дипломная работа: разбор формулы ускорения в воздухе по шагам, пересчёт единиц.
 - [TF2 Wiki, Strafing](https://wiki.teamfortress.com/wiki/Strafing) — описание воздушного стрейфа словами.
 - [Mathematical description of air strafing](https://backup.jump.tf/forums/forums.tf2jump.com/index.php/topic%2C2369.0.html) — форум jump.tf, замеры для TF2.
+- Wall strafing (замечание О13): [разбор для Quake 3 с формулой](https://www.artifexquake.com/?page_id=198), [архив вики SourceRuns](https://wiki.sourceruns.org/wiki/Wallstrafe), [руководство по CS:S](https://steamcommunity.com/sharedfiles/filedetails/?id=3193793023), [плагин ClassicMovement для TF2](https://github.com/mphe/TF2-ClassicMovement) — в описании есть числа для тика 66 и объяснение, почему распрыжка в TF2 теряет прыжки.
+- [TF2 Wiki, Bunnyhopping](https://wiki.teamfortress.com/wiki/Bunnyhopping) — патч от 31 октября 2007 года добавил в TF2 код против распрыжки.
 
 Не открывать: репозитории с утёкшими исходниками TF2 (встречаются в поисковой выдаче) и файлы движения из Source SDK ради алгоритмов. Числа из открытого SDK использовать можно, см. `05-sources.md`.
