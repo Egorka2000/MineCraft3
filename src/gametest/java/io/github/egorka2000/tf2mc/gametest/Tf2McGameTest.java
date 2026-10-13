@@ -152,6 +152,9 @@ public class Tf2McGameTest {
 			check(player.getMaxHealth() == 200.0f, "максимум здоровья Soldier: " + player.getMaxHealth());
 			check(player.getHealth() == 200.0f, "здоровье после выдачи класса: " + player.getHealth());
 
+			// Класс виден в имени игрока: «Ник (soldier)».
+			check(player.getDisplayName().getString().equals(name + " (soldier)"), "имя игрока с классом: " + player.getDisplayName().getString());
+
 			// Свой класс игрок без прав оператора меняет сам, а указать ник не может, даже свой.
 			run(player.createCommandSourceStack(), "class vanilla " + name);
 			check(PlayerClasses.get(player).isPresent(), "игрок без прав оператора применил команду с ником");

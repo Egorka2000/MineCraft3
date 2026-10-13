@@ -10,6 +10,19 @@ repositories {
 	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
 	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
 	// for more information about repositories.
+
+	// GeckoLib берётся из хранилища Modrinth; из него разрешена только эта группа.
+	exclusiveContent {
+		forRepository {
+			maven {
+				name = "Modrinth"
+				url = "https://api.modrinth.com/maven"
+			}
+		}
+		filter {
+			includeGroup "maven.modrinth"
+		}
+	}
 }
 
 loom {
@@ -65,6 +78,9 @@ dependencies {
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// Скелетная анимация моделей персонажей. Нужна только клиенту: сервер работает и без неё.
+	clientImplementation "maven.modrinth:geckolib:${project.geckolib_version}"
 
 	// Математика движения. Её классы кладутся прямо в jar мода, см. блок jar ниже.
 	implementation project(":physics")

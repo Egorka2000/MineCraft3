@@ -5,6 +5,7 @@
 	"mixins": [
 		"FoodDataMixin",
 		"LivingEntityMixin",
+		"PlayerMixin",
 		"ServerPlayerMixin"
 	],
 	"injectors": {
