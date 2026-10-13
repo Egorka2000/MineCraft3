@@ -5,8 +5,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Objects;
 
+import com.mojang.blaze3d.audio.SoundBuffer;
 import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.client.HealthHud;
+import io.github.egorka2000.tf2mc.client.WavSounds;
 import io.github.egorka2000.tf2mc.config.ConfigManager;
 
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
@@ -16,6 +18,11 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestServerConnection;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestServerContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.client.sounds.WeighedSoundEvents;
+import net.minecraft.resources.Identifier;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -39,6 +46,9 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 
 	@Override
 	public void runTest(ClientGameTestContext context) {
+		assertSoundsHavePlaceholders(context);
+		assertWavSoundIsLoaded(context);
+
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
 			runScenario(context, singleplayer.getServer(), singleplayer.getConnection(), "одиночная игра");
 		}
@@ -275,6 +285,68 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		Vec3 server = serverContext.computeOnServer(minecraftServer -> minecraftServer.getPlayerList().getPlayers().getFirst().position());
 
 		assertNear(where + ": расхождение позиции клиента и сервера", 0.0, client.distanceTo(server), 0.5);
+	}
+
+	/**
+	 * За каждым звуком мода должен стоять настоящий звук: без расширительного пака — ванильная
+	 * заглушка. Опечатка в sounds.json дала бы тишину без единой ошибки.
+	 */
+	private static void assertSoundsHavePlaceholders(ClientGameTestContext context) {
+		for (String sound : new String[] {"weapon.rocket_launcher.shoot", "weapon.rocket_launcher.reload", "weapon.rocket.explode"}) {
+			String file = soundBehind(context, sound);
+
+			if (file == null || file.equals("minecraft:empty") || file.equals("minecraft:intentionally_empty")) {
+				throw new AssertionError("за звуком " + sound + " ничего не стоит: " + file);
+			}
+
+			Tf2Mc.LOGGER.info("[звук] {} -> {}", sound, file);
+		}
+	}
+
+	/**
+	 * Звук в формате WAV из ресурсов: игра сама его не понимает, читает мод. Проверяется на
+	 * собственном тестовом звуке из ресурсов тестового мода — 0,1 секунды, стерео, 22050 Гц.
+	 * Так работает расширительный пак, но файлов Valve для проверки не нужно.
+	 */
+	private static void assertWavSoundIsLoaded(ClientGameTestContext context) {
+		Identifier event = Identifier.fromNamespaceAndPath("tf2mc-test", "beep");
+		String file = soundBehind(context, event);
+
+		// Игра не выбросила звук при загрузке, хотя файла beep.ogg нет.
+		if (!"tf2mc-test:beep".equals(file)) {
+			throw new AssertionError("звук из WAV не принят игрой: за " + event + " стоит " + file);
+		}
+
+		String loaded = context.computeOnClient(client -> {
+			try {
+				SoundBuffer buffer = WavSounds.load(client.getResourceManager(), Identifier.fromNamespaceAndPath("tf2mc-test", "sounds/beep.wav"));
+				return buffer.size() + " байт, " + (int) buffer.format().getSampleRate() + " Гц, каналов " + buffer.format().getChannels();
+			} catch (IOException e) {
+				return "ошибка: " + e.getMessage();
+			}
+		});
+
+		// 2205 отсчётов по два байта: стерео сведено в моно.
+		if (!"4410 байт, 22050 Гц, каналов 1".equals(loaded)) {
+			throw new AssertionError("звук из WAV прочитан неверно: " + loaded);
+		}
+
+		// Проигрывание идёт через загрузчик звуков игры: ошибка чтения попала бы в лог.
+		context.runOnClient(client -> client.getSoundManager().play(
+				SimpleSoundInstance.forUI(SoundEvent.createVariableRangeEvent(event), 1.0f)));
+		context.waitTicks(10);
+	}
+
+	/** Какой файл клиент сыграет для звука мода; {@code null}, если такого звука клиент не знает. */
+	private static String soundBehind(ClientGameTestContext context, String path) {
+		return soundBehind(context, Tf2Mc.id(path));
+	}
+
+	private static String soundBehind(ClientGameTestContext context, Identifier id) {
+		return context.computeOnClient(client -> {
+			WeighedSoundEvents events = client.getSoundManager().getSoundEvent(id);
+			return events == null ? null : events.getSound(RandomSource.create()).getLocation().toString();
+		});
 	}
 
 	/** Временно подменяет файл настроек сервера и перечитывает его командой. */

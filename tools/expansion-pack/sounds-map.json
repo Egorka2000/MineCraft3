@@ -1,0 +1,22 @@
+{
+	"weapon.rocket_launcher.shoot": {
+		"subtitle": "subtitles.tf2mc.weapon.rocket_launcher.shoot",
+		"files": [
+			"sound/weapons/rocket_shoot.wav"
+		]
+	},
+	"weapon.rocket_launcher.reload": {
+		"subtitle": "subtitles.tf2mc.weapon.rocket_launcher.reload",
+		"files": [
+			"sound/weapons/rocket_reload.wav"
+		]
+	},
+	"weapon.rocket.explode": {
+		"subtitle": "subtitles.tf2mc.weapon.rocket.explode",
+		"files": [
+			"sound/weapons/explode1.wav",
+			"sound/weapons/explode2.wav",
+			"sound/weapons/explode3.wav"
+		]
+	}
+}

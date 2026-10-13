@@ -1,6 +1,11 @@
 # Рабочие и временные файлы
 tmp/
 
+# Расширительный пак: файлы Valve в репозиторий не попадают ни при каких настройках скриптов
+tools/expansion-pack/pack/
+tools/expansion-pack/tf2mc-expansion/
+tools/expansion-pack/*.zip
+
 # Gradle / Fabric
 .gradle/
 build/
