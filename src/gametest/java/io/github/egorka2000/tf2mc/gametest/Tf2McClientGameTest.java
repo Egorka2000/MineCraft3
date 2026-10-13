@@ -88,6 +88,30 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		assertNear(where + ": высота прыжка TF2", TF2_JUMP, jumpHeight(context), 0.03);
 		assertServerAgrees(context, server, connection, where);
 
+		// Ракетный прыжок: сервер толкает игрока взрывом, а движение считает клиент.
+		resetPlayer(context, server, connection);
+		double groundedJump = rocketJumpHeight(context, server, connection, false);
+		Tf2Mc.LOGGER.info("[замер] {}: ракетный прыжок с земли: {} блоков, {} u", where, String.format("%.3f", groundedJump), String.format("%.1f", groundedJump * UNITS_PER_BLOCK));
+		// Взрыв под ногами стоящего игрока: урон 75,1, толчок 0,948 × 75,1 × 5 = 356 u/s, высота 356² / (2 × 800) = 79,2 u.
+		assertNear(where + ": высота ракетного прыжка с земли", 79.2 / UNITS_PER_BLOCK, groundedJump, 0.05);
+		// Урон по себе на земле полный: 200 − 75,1 = 124,9, на экране округляется вверх.
+		assertShownHealth(context, where + ": здоровье после ракетного прыжка с земли", "HP 125");
+		assertServerAgrees(context, server, connection, where);
+		server.runCommand("execute as @a run tf2 health set 200");
+
+		resetPlayer(context, server, connection);
+		double airborneJump = rocketJumpHeight(context, server, connection, true);
+		Tf2Mc.LOGGER.info("[замер] {}: ракетный прыжок в прыжке: {} блоков, {} u", where, String.format("%.3f", airborneJump), String.format("%.1f", airborneJump * UNITS_PER_BLOCK));
+
+		// В воздухе толчок вдвое сильнее и складывается со скоростью прыжка. Точная высота зависит
+		// от того, на каком тике прыжка взорвалась ракета, поэтому проверяется нижняя граница.
+		if (airborneJump < groundedJump * 2.0) {
+			throw new AssertionError(where + ": ракетный прыжок в прыжке не выше двух прыжков с земли: " + airborneJump + " блоков");
+		}
+
+		assertServerAgrees(context, server, connection, where);
+		server.runCommand("execute as @a run tf2 health set 200");
+
 		// Стрейф в воздухе: ввод вбок с поворотом взгляда вслед за полётом разгоняет выше максимума.
 		resetPlayer(context, server, connection);
 		double strafeSpeed = airStrafeSpeed(context);
@@ -169,6 +193,37 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			apex = Math.max(apex, position(context).y);
 		}
 
+		return apex - ground;
+	}
+
+	/**
+	 * Ракета под ноги: игрок смотрит вниз, сервер выпускает ракету от его имени.
+	 * Возвращает наибольшую высоту над точкой старта, блоки.
+	 *
+	 * @param jumpFirst сначала подпрыгнуть: взрыв застанет игрока в воздухе
+	 */
+	private static double rocketJumpHeight(ClientGameTestContext context, TestServerContext server, TestServerConnection connection, boolean jumpFirst) {
+		context.runOnClient(client -> client.player.setXRot(90.0f));
+		// Поворот взгляда должен дойти до сервера: ракета летит туда, куда игрок смотрит на сервере.
+		context.waitTicks(5);
+
+		double ground = position(context).y;
+		double apex = ground;
+
+		if (jumpFirst) {
+			context.getInput().holdKeyFor(options -> options.keyJump, 2);
+			context.waitTicks(3);
+		}
+
+		server.runCommand("execute as @a run tf2 rocket");
+
+		for (int tick = 0; tick < 80; tick++) {
+			context.waitTick();
+			apex = Math.max(apex, position(context).y);
+		}
+
+		context.runOnClient(client -> client.player.setXRot(0.0f));
+		context.waitTicks(5);
 		return apex - ground;
 	}
 

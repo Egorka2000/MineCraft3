@@ -34,6 +34,11 @@ public final class UnitConversion {
 		return blocks * unitsPerBlock;
 	}
 
+	/** Расстояние из юнитов в блоки. */
+	public static double toBlocks(double units, double unitsPerBlock) {
+		return units / unitsPerBlock;
+	}
+
 	/**
 	 * Состояние для расчёта из скорости Minecraft.
 	 *

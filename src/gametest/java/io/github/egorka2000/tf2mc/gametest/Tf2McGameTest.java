@@ -18,12 +18,16 @@ import io.github.egorka2000.tf2mc.config.Tf2Config;
 import io.github.egorka2000.tf2mc.movement.SpeedometerToggle;
 import io.github.egorka2000.tf2mc.team.Teams;
 import io.github.egorka2000.tf2mc.team.TfTeam;
+import io.github.egorka2000.tf2mc.weapon.RocketBlast;
+import io.github.egorka2000.tf2mc.weapon.RocketEntity;
+import io.github.egorka2000.tf2mc.weapon.Tf2Weapons;
 import io.netty.channel.embedded.EmbeddedChannel;
 
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.fabricmc.loader.api.FabricLoader;
 
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.PacketFlow;
@@ -34,6 +38,8 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Серверные игровые тесты: запускают настоящий сервер с модом.
@@ -349,6 +355,184 @@ public class Tf2McGameTest {
 		target.setHealth(target.getMaxHealth());
 		target.hurtServer(level, attacker.damageSources().playerAttack(attacker), damage);
 		return target.getHealth() < target.getMaxHealth();
+	}
+
+	// Шаг 9: взрыв ракеты. Числа посчитаны вручную по формулам из docs/02-physics.md.
+	// Центр игрока в 40,5 u над ногами. Взрыв под ногами стрелка: урон 90 × (1 − 0,5 × 40,5 / 121) = 74,94.
+	// Толчок вверх: 0,948 × 74,94 × 5 = 355,2 u/s на земле и вдвое больше, 710,4 u/s, в воздухе.
+	@GameTest
+	public void rocketBlastPushesAndDamages(GameTestHelper helper) {
+		MinecraftServer server = helper.getLevel().getServer();
+		ServerLevel level = helper.getLevel();
+		ServerPlayer shooter = joinTestPlayer(helper, "tf2mc-rocket-a");
+		ServerPlayer other = joinTestPlayer(helper, "tf2mc-rocket-b");
+		Vec3 shooterSpot = helper.absoluteVec(new Vec3(1.5, 3.0, 1.5));
+		Vec3 otherSpot = helper.absoluteVec(new Vec3(6.5, 3.0, 6.5));
+
+		try {
+			for (ServerPlayer player : new ServerPlayer[] {shooter, other}) {
+				player.connection.handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
+				player.setGameMode(GameType.SURVIVAL);
+			}
+
+			shooter.setPos(shooterSpot);
+			other.setPos(otherSpot);
+
+			// Без класса ракета не выпускается.
+			check(!Tf2Weapons.fireRocket(shooter), "игрок без класса выпустил ракету");
+
+			run(server.createCommandSourceStack(), "class soldier tf2mc-rocket-a");
+			run(server.createCommandSourceStack(), "class soldier tf2mc-rocket-b");
+			RocketEntity rocket = new RocketEntity(Tf2Weapons.ROCKET, level);
+
+			// Взрыв под ногами стоящего на земле стрелка: полный урон, слабый толчок.
+			shooter.setOnGround(true);
+			shooter.setDeltaMovement(Vec3.ZERO);
+			RocketBlast.explode(level, shooterSpot, rocket, shooter, null);
+			checkNear("здоровье после взрыва на земле", 200.0 - 74.94, shooter.getHealth(), 0.05);
+			checkNear("толчок вверх на земле, u/s", 355.2, shooter.getDeltaMovement().y * 45.0 * 20.0, 0.5);
+			checkNear("толчок вбок на земле", 0.0, shooter.getDeltaMovement().horizontalDistance(), 1e-6);
+
+			// То же в воздухе: толчок вдвое сильнее, урон 60%.
+			shooter.setHealth(200.0f);
+			shooter.setOnGround(false);
+			shooter.setDeltaMovement(Vec3.ZERO);
+			RocketBlast.explode(level, shooterSpot, rocket, shooter, null);
+			checkNear("здоровье после взрыва в воздухе", 200.0 - 74.94 * 0.6, shooter.getHealth(), 0.05);
+			checkNear("толчок вверх в воздухе, u/s", 710.4, shooter.getDeltaMovement().y * 45.0 * 20.0, 0.5);
+
+			// Толчок добавляется к скорости, а не заменяет её.
+			shooter.setHealth(200.0f);
+			shooter.setDeltaMovement(new Vec3(0.1, 0.0, 0.0));
+			RocketBlast.explode(level, shooterSpot, rocket, shooter, null);
+			checkNear("горизонтальная скорость сохранена", 0.1, shooter.getDeltaMovement().x, 1e-6);
+			shooter.setHealth(200.0f);
+
+			// Нейтральный игрок взрывом чужой ракеты не задевается.
+			check(Teams.isNeutral(other), "второй игрок не нейтральный");
+			other.setDeltaMovement(Vec3.ZERO);
+			RocketBlast.explode(level, otherSpot, rocket, shooter, null);
+			check(other.getHealth() == 200.0f, "взрыв ранил нейтрального игрока: " + other.getHealth());
+
+			// Своя команда не задевается.
+			run(server.createCommandSourceStack(), "team red tf2mc-rocket-a");
+			run(server.createCommandSourceStack(), "team red tf2mc-rocket-b");
+			RocketBlast.explode(level, otherSpot, rocket, shooter, null);
+			check(other.getHealth() == 200.0f, "взрыв ранил игрока своей команды: " + other.getHealth());
+			checkNear("игрок своей команды отброшен", 0.0, other.getDeltaMovement().length(), 1e-6);
+
+			// Чужая команда: урон 90 × (1 − 0,5 × 40,5 / 146) = 77,52, толчок 0,948 × 77,52 × 6 = 440,9 u/s.
+			run(server.createCommandSourceStack(), "team blu tf2mc-rocket-b");
+			RocketBlast.explode(level, otherSpot, rocket, shooter, null);
+			checkNear("здоровье противника после взрыва", 200.0 - 77.52, other.getHealth(), 0.05);
+			checkNear("толчок противника вверх, u/s", 440.9, other.getDeltaMovement().y * 45.0 * 20.0, 0.5);
+
+			// Прямое попадание: полный урон независимо от расстояния до центра.
+			other.setHealth(200.0f);
+			RocketBlast.explode(level, otherSpot, rocket, shooter, other);
+			checkNear("здоровье противника после прямого попадания", 200.0 - 90.0, other.getHealth(), 0.05);
+
+			// Стрелок был в семи блоках от этих взрывов: его они не задели.
+			check(shooter.getHealth() == 200.0f, "далёкий взрыв ранил стрелка: " + shooter.getHealth());
+		} finally {
+			for (ServerPlayer player : new ServerPlayer[] {shooter, other}) {
+				server.getScoreboard().removePlayerFromTeam(player.getScoreboardName());
+				server.getPlayerList().remove(player);
+			}
+		}
+
+		helper.succeed();
+	}
+
+	// Шаг 9: полёт ракеты. 1100 u/s — это 1,222 блока за тик; ракета взрывается о первый блок на пути.
+	@GameTest
+	public void rocketFliesStraightAndExplodesOnBlock(GameTestHelper helper) {
+		MinecraftServer server = helper.getLevel().getServer();
+		ServerLevel level = helper.getLevel();
+		ServerPlayer shooter = joinTestPlayer(helper, "tf2mc-rocket-c");
+
+		try {
+			shooter.connection.handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
+			shooter.setGameMode(GameType.SURVIVAL);
+			run(server.createCommandSourceStack(), "class soldier tf2mc-rocket-c");
+
+			// Стрелок смотрит вдоль оси z, в свободное пространство площадки.
+			shooter.setPos(helper.absoluteVec(new Vec3(1.5, 3.0, 0.5)));
+			shooter.setYRot(0.0f);
+			shooter.setXRot(0.0f);
+
+			check(Tf2Weapons.fireRocket(shooter), "игрок с классом не выпустил ракету");
+			RocketEntity rocket = RocketEntity.fire(level, shooter);
+			Vec3 start = rocket.position();
+
+			for (int i = 0; i < 3; i++) {
+				rocket.tick();
+			}
+
+			check(!rocket.isRemoved(), "ракета исчезла в свободном полёте");
+			checkNear("путь ракеты за три тика, блоки", 3.0 * 1100.0 / 45.0 / 20.0, rocket.position().distanceTo(start), 1e-3);
+			checkNear("ракета отклонилась от прямой", 0.0, Math.abs(rocket.getX() - start.x) + Math.abs(rocket.getY() - start.y), 1e-6);
+			rocket.discard();
+
+			// Блок в пяти блоках перед глазами: ракета взрывается о него не позже чем через пять тиков.
+			helper.setBlock(new BlockPos(1, 4, 6), Blocks.STONE);
+			RocketEntity second = RocketEntity.fire(level, shooter);
+			int ticks = 0;
+
+			while (!second.isRemoved() && ticks < 20) {
+				second.tick();
+				ticks++;
+			}
+
+			check(second.isRemoved(), "ракета не взорвалась о блок");
+			check(ticks <= 5, "ракета взорвалась слишком поздно: тик " + ticks);
+			check(helper.getBlockState(new BlockPos(1, 4, 6)).is(Blocks.STONE), "взрыв разрушил блок");
+
+			// Взрыв был в пяти блоках, это 225 u: дальше радиуса для стрелка.
+			check(shooter.getHealth() == 200.0f, "далёкий взрыв своей ракеты ранил стрелка: " + shooter.getHealth());
+		} finally {
+			server.getScoreboard().removePlayerFromTeam(shooter.getScoreboardName());
+			server.getPlayerList().remove(shooter);
+		}
+
+		helper.succeed();
+	}
+
+	// Шаг 9: после урона игра рассылает игроку его скорость с сервера. У игрока с классом её считает
+	// клиент, и такая рассылка стёрла бы разгон, поэтому для него она отключена.
+	@GameTest
+	public void damageDoesNotResetClassPlayerVelocity(GameTestHelper helper) {
+		MinecraftServer server = helper.getLevel().getServer();
+		ServerLevel level = helper.getLevel();
+		ServerPlayer player = joinTestPlayer(helper, "tf2mc-velocity");
+
+		try {
+			player.connection.handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
+			player.setGameMode(GameType.SURVIVAL);
+
+			// Ванильный игрок: всё как в обычной игре, скорость помечена к рассылке.
+			player.syncVelocity = false;
+			check(player.hurtServer(level, player.damageSources().generic(), 1.0f), "урон по ванильному игроку не прошёл");
+			check(player.syncVelocity, "ванильному игроку скорость после урона не рассылается");
+
+			run(server.createCommandSourceStack(), "class soldier tf2mc-velocity");
+			player.syncVelocity = false;
+			player.setDeltaMovement(new Vec3(0.3, 0.2, 0.1));
+			check(player.hurtServer(level, player.damageSources().generic(), 5.0f), "урон по игроку с классом не прошёл");
+			check(!player.syncVelocity, "игроку с классом после урона рассылается скорость с сервера");
+			checkNear("скорость игрока с классом после урона", 0.0, player.getDeltaMovement().distanceTo(new Vec3(0.3, 0.2, 0.1)), 1e-9);
+		} finally {
+			server.getScoreboard().removePlayerFromTeam(player.getScoreboardName());
+			server.getPlayerList().remove(player);
+		}
+
+		helper.succeed();
+	}
+
+	private static void checkNear(String what, double expected, double actual, double tolerance) {
+		if (Math.abs(expected - actual) > tolerance) {
+			throw new IllegalStateException(what + ": ожидалось " + expected + ", получено " + actual);
+		}
 	}
 
 	private static void run(CommandSourceStack source, String command) {

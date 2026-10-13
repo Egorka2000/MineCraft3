@@ -193,6 +193,35 @@ class SourceMovementTest {
 	}
 
 	@Test
+	void fastUpwardPushLiftsPlayerOffGround() {
+		// Взрыв под ногами дал стоящему игроку 355 u/s вверх: он должен взлететь, а не остаться на земле.
+		MoveState pushed = new MoveState(0.0, 0.0, 355.0, true);
+		MoveState after = SourceMovement.beforeMove(pushed, MoveInput.NONE, SOLDIER, TF2_TICK);
+
+		assertFalse(after.onGround());
+		assertEquals(355.0 - SOLDIER.gravity() * TF2_TICK / 2.0, after.vz(), 1e-12);
+	}
+
+	@Test
+	void slowUpwardSpeedKeepsPlayerOnGround() {
+		// Ровно на пороге и ниже игрок остаётся на земле, вертикальная скорость гасится.
+		MoveState atThreshold = new MoveState(0.0, 0.0, SourceMovement.LEAVE_GROUND_SPEED, true);
+		MoveState after = SourceMovement.beforeMove(atThreshold, MoveInput.NONE, SOLDIER, TF2_TICK);
+
+		assertTrue(after.onGround());
+		assertEquals(0.0, after.vz(), 1e-12);
+	}
+
+	@Test
+	void pushedPlayerKeepsHorizontalSpeedWithoutFriction() {
+		// Оторвавшись от земли, игрок летит: трение на этом шаге не действует.
+		MoveState pushed = new MoveState(200.0, 0.0, 400.0, true);
+		MoveState after = SourceMovement.beforeMove(pushed, MoveInput.NONE, SOLDIER, TF2_TICK);
+
+		assertEquals(200.0, after.vx(), 1e-12);
+	}
+
+	@Test
 	void jumpInAirDoesNothing() {
 		MoveState falling = new MoveState(0.0, 0.0, -100.0, false);
 		MoveState withJump = SourceMovement.beforeMove(falling, new MoveInput(0.0, 0.0, true), SOLDIER, TF2_TICK);

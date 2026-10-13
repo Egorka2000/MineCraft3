@@ -19,6 +19,12 @@ package io.github.egorka2000.tf2mc.physics;
  * всегда даёт одинаковый выход, на клиенте и на сервере.
  */
 public final class SourceMovement {
+	/**
+	 * Скорость вверх, выше которой игрок считается оторвавшимся от земли, u/s.
+	 * Источник — docs/05-sources.md.
+	 */
+	public static final double LEAVE_GROUND_SPEED = 140.0;
+
 	/** Ниже этой скорости трение не считается: игрок уже стоит. */
 	private static final double MIN_FRICTION_SPEED = 0.1;
 
@@ -41,6 +47,12 @@ public final class SourceMovement {
 		double vy = state.vy();
 		double vz = state.vz();
 		boolean onGround = state.onGround();
+
+		// Игрок, которого что-то подбросило быстрее порога, на земле уже не стоит: иначе толчок
+		// от взрыва под ногами гасился бы как движение по земле.
+		if (onGround && vz > LEAVE_GROUND_SPEED) {
+			onGround = false;
+		}
 
 		// Прыжок проверяется до трения: если нажать его в шаг приземления,
 		// трение не успевает сработать и скорость сохраняется. На этом держится распрыжка.

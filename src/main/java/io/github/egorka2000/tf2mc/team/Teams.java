@@ -54,6 +54,18 @@ public final class Teams {
 		return team != null && team.getName().equals(NEUTRAL_NAME);
 	}
 
+	/**
+	 * Могут ли два игрока ранить друг друга: не могут игроки одной команды и не может никто,
+	 * если хотя бы один из них нейтральный. Оружие мода должно спрашивать именно здесь.
+	 */
+	public static boolean canFight(Player first, Player second) {
+		if (isNeutral(first) || isNeutral(second)) {
+			return false;
+		}
+
+		return first.canHarmPlayer(second) && second.canHarmPlayer(first);
+	}
+
 	/** Зачисляет игрока в команду. Наблюдателю возвращается режим игры, который был до наблюдения. */
 	public static void join(ServerPlayer player, TfTeam team) {
 		Scoreboard scoreboard = player.level().getServer().getScoreboard();

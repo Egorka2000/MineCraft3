@@ -29,6 +29,9 @@ class UnitConversionTest {
 	@Test
 	void distanceConversionUsesScale() {
 		assertEquals(52.2, UnitConversion.toUnits(1.16, SCALE), EPSILON);
+		// Радиус взрыва ракеты 146 u — это 3,24 блока.
+		assertEquals(146.0 / 45.0, UnitConversion.toBlocks(146.0, SCALE), EPSILON);
+		assertEquals(146.0, UnitConversion.toUnits(UnitConversion.toBlocks(146.0, SCALE), SCALE), EPSILON);
 	}
 
 	@Test
