@@ -5,13 +5,14 @@
 #   .\convert-pack.ps1                       собрать ресурс-пак рядом с паком
 #   .\convert-pack.ps1 -Install              и положить его в папку resourcepacks игры
 #   .\convert-pack.ps1 -PackDir D:\pack      расширительный пак лежит в другом месте
+#   .\convert-pack.ps1 -Install -GameDir D:\Games\profile   игра стоит не в %appdata%\.minecraft
 #
-# Звук перекодирует Blender: в него встроена нужная библиотека, ставить ничего не надо.
+# Никакие программы не нужны: звуки копируются как есть, в формате WAV. Игра сама его
+# не понимает, но мод tf2-mc умеет читать WAV из ресурс-паков.
 
 param(
     [string]$PackDir = (Join-Path $env:USERPROFILE "Documents\tf2mc-expansion-pack\pack"),
     [string]$OutDir = "",
-    [string]$Blender = "",
     [string]$GameDir = (Join-Path $env:APPDATA ".minecraft"),
     [switch]$Install
 )
@@ -30,18 +31,6 @@ if ($OutDir -eq "") {
     $OutDir = Join-Path (Split-Path $PackDir -Parent) $packName
 }
 
-if ($Blender -eq "") {
-    $found = Get-ChildItem "C:\Program Files\Blender Foundation" -Filter blender.exe -Recurse -ErrorAction SilentlyContinue |
-        Sort-Object FullName -Descending | Select-Object -First 1
-    if ($null -ne $found) {
-        $Blender = $found.FullName
-    }
-}
-
-if ($Blender -eq "" -or -not (Test-Path $Blender)) {
-    throw "Не найден Blender. Установите его с blender.org или укажите путь к blender.exe параметром -Blender."
-}
-
 $map = Get-Content (Join-Path $PSScriptRoot "sounds-map.json") -Raw -Encoding UTF8 | ConvertFrom-Json
 
 if (Test-Path $OutDir) {
@@ -50,9 +39,10 @@ if (Test-Path $OutDir) {
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 
 $soundsDir = Join-Path $OutDir "assets\tf2mc\sounds"
-$jobs = @()
 $sounds = [ordered]@{}
+$copied = 0
 $missing = @()
+$skipped = @()
 
 foreach ($event in $map.PSObject.Properties) {
     $entries = @()
@@ -65,10 +55,20 @@ foreach ($event in $map.PSObject.Properties) {
             continue
         }
 
+        # Мод читает только WAV; сжатые звуки (MP3) пока не поддерживаются.
+        if ([System.IO.Path]::GetExtension($source) -ne ".wav") {
+            $skipped += $file
+            continue
+        }
+
         # sound/weapons/rocket_shoot.wav -> weapons/rocket_shoot
         $name = ($file -replace "^sound/", "") -replace "\.[A-Za-z0-9]+$", ""
-        $jobs += @{ source = $source; target = (Join-Path $soundsDir (($name -replace "/", "\") + ".ogg")) }
+        $target = Join-Path $soundsDir (($name -replace "/", "\") + ".wav")
+
+        New-Item -ItemType Directory -Force (Split-Path $target -Parent) | Out-Null
+        Copy-Item $source $target
         $entries += "tf2mc:$name"
+        $copied++
     }
 
     if ($entries.Count -gt 0) {
@@ -77,34 +77,24 @@ foreach ($event in $map.PSObject.Properties) {
     }
 }
 
-if ($jobs.Count -eq 0) {
+if ($copied -eq 0) {
     throw "В расширительном паке не нашлось ни одного нужного звука."
 }
 
 # Файлы пишутся без метки порядка байтов: с ней игра не разберёт JSON.
 $utf8 = New-Object System.Text.UTF8Encoding($false)
-$jobsFile = Join-Path $env:TEMP "tf2mc-convert-jobs.json"
-[System.IO.File]::WriteAllText($jobsFile, (ConvertTo-Json @($jobs) -Depth 4), $utf8)
-
-Write-Host "Перекодирую звуков: $($jobs.Count)"
-$log = & $Blender --background --factory-startup --python (Join-Path $PSScriptRoot "convert_sounds.py") -- $jobsFile
-$blenderExit = $LASTEXITCODE
-Remove-Item -Force -Confirm:$false $jobsFile
-$log | Where-Object { $_ -match "^TF2CONV fail" } | ForEach-Object { Write-Warning $_ }
-
 $mcmeta = [ordered]@{ pack = [ordered]@{ description = "tf2-mc: звуки из установленной Team Fortress 2"; min_format = $packFormat; max_format = $packFormat } }
 [System.IO.File]::WriteAllText((Join-Path $OutDir "pack.mcmeta"), (ConvertTo-Json $mcmeta -Depth 4), $utf8)
 [System.IO.File]::WriteAllText((Join-Path $OutDir "assets\tf2mc\sounds.json"), (ConvertTo-Json $sounds -Depth 6), $utf8)
 
-$done = @(Get-ChildItem -Recurse -File $soundsDir -Filter *.ogg)
-Write-Host "Готово: $($done.Count) звуков из $($jobs.Count) в $OutDir"
+Write-Host "Готово: звуков $copied в $OutDir"
 
 foreach ($file in $missing) {
     Write-Warning "Нет в расширительном паке: $file"
 }
 
-if ($blenderExit -ne 0 -or $done.Count -ne $jobs.Count) {
-    throw "Перекодировано не всё: ожидалось $($jobs.Count), получилось $($done.Count)."
+foreach ($file in $skipped) {
+    Write-Warning "Пропущен, формат пока не поддерживается: $file"
 }
 
 if ($Install) {
