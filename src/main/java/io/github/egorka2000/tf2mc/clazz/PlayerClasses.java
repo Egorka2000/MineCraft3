@@ -4,6 +4,7 @@ import java.util.Optional;
 
 import com.mojang.serialization.Codec;
 import io.github.egorka2000.tf2mc.Tf2Mc;
+import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
 
 import net.fabricmc.fabric.api.attachment.v1.AttachmentRegistry;
 import net.fabricmc.fabric.api.attachment.v1.AttachmentSyncPredicate;
@@ -46,7 +47,14 @@ public final class PlayerClasses {
 		// Модификаторы атрибутов игра через смерть не переносит: после перерождения здоровье класса
 		// выставляется заново. Класс берётся у прежнего игрока: к моменту этого события данные
 		// Attachment API на нового игрока ещё не перенесены.
-		ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> applyHealth(newPlayer, get(oldPlayer), true));
+		ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
+			applyHealth(newPlayer, get(oldPlayer), true);
+
+			// Вещи после смерти теряются: оружие класса выдаётся заново, с полным боезапасом.
+			if (get(oldPlayer).isPresent()) {
+				RocketLauncher.equip(newPlayer);
+			}
+		});
 		// При входе — на случай, если сохранённые данные игрока разошлись с описанием класса
 		// в новой версии мода.
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> applyHealth(handler.getPlayer(), get(handler.getPlayer()), false));
@@ -72,6 +80,12 @@ public final class PlayerClasses {
 		}
 
 		applyHealth(player, Optional.ofNullable(tfClass), true);
+
+		if (tfClass == null) {
+			RocketLauncher.unequip(player);
+		} else {
+			RocketLauncher.equip(player);
+		}
 	}
 
 	/**

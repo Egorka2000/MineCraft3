@@ -1,6 +1,7 @@
 package io.github.egorka2000.tf2mc.client;
 
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
+import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
 
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
@@ -12,8 +13,8 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 
 /**
- * У игрока с классом TF2 вместо сердец показывается число здоровья, а полоски голода и брони
- * скрыты: сытости и брони в правилах TF2 нет. Простой текст; полноценный HUD — задача T5.1.
+ * У игрока с классом TF2 вместо сердец показывается число здоровья, на месте полоски голода —
+ * боезапас, а полоска брони скрыта: сытости и брони в правилах TF2 нет. Простой текст; полноценный HUD — задача T5.1.
  */
 public final class HealthHud {
 	// Там же, где игра рисует левое сердце.
@@ -30,12 +31,20 @@ public final class HealthHud {
 	/** Что показано в последнем кадре; {@code null}, если число здоровья не рисовалось. */
 	private static volatile String shownText;
 
+	/** Боезапас, показанный в последнем кадре; {@code null}, если он не рисовался. */
+	private static volatile String shownAmmo;
+
 	private HealthHud() {
 	}
 
 	/** Текст здоровья из последнего кадра. Нужен клиентскому игровому тесту: экран он читать не умеет. */
 	public static String shownText() {
 		return shownText;
+	}
+
+	/** Текст боезапаса из последнего кадра. Нужен клиентскому игровому тесту. */
+	public static String shownAmmo() {
+		return shownAmmo;
 	}
 
 	static void register() {
@@ -49,7 +58,16 @@ public final class HealthHud {
 			}
 		});
 
-		hideForClass(VanillaHudElements.FOOD_BAR);
+		// На месте полоски голода — боезапас: сытости у игрока с классом нет.
+		HudElementRegistry.replaceElement(VanillaHudElements.FOOD_BAR, vanilla -> (graphics, delta) -> {
+			shownAmmo = null;
+
+			if (hasClass()) {
+				extractAmmo(graphics);
+			} else {
+				vanilla.extractRenderState(graphics, delta);
+			}
+		});
 		// Игра ставит броню над сердцами, а при 200 HP сердец было бы десять рядов.
 		hideForClass(VanillaHudElements.ARMOR_BAR);
 	}
@@ -60,6 +78,28 @@ public final class HealthHud {
 				vanilla.extractRenderState(graphics, delta);
 			}
 		});
+	}
+
+	/** Боезапас ракетницы: «обойма / запас», прижат к правому краю панели. */
+	private static void extractAmmo(GuiGraphicsExtractor graphics) {
+		Minecraft client = Minecraft.getInstance();
+		LocalPlayer player = client.player;
+
+		if (player == null || client.gameMode == null || !client.gameMode.canHurtPlayer()) {
+			return;
+		}
+
+		RocketLauncher.Ammo ammo = RocketLauncher.ammo(player);
+
+		if (ammo == null) {
+			return;
+		}
+
+		String text = ammo.clip() + " / " + ammo.reserve();
+		shownAmmo = text;
+		graphics.text(
+				client.font, text, graphics.guiWidth() / 2 + OFFSET_FROM_CENTER - client.font.width(text), graphics.guiHeight() - OFFSET_FROM_BOTTOM,
+				ammo.clip() == 0 ? COLOR_LOW : COLOR_NORMAL);
 	}
 
 	private static boolean hasClass() {

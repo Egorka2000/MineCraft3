@@ -25,7 +25,7 @@ import net.minecraft.world.phys.Vec3;
  * Математика — в {@link ExplosionMath}, здесь поиск целей и связь с игрой.
  */
 public final class RocketBlast {
-	/** Урон ракеты в центре взрыва. */
+	/** Урон ракеты в центре взрыва на среднем расстоянии от стрелка. */
 	public static final double DAMAGE = 90.0;
 
 	/** Радиус взрыва для всех, кроме стрелка, u. */
@@ -57,7 +57,11 @@ public final class RocketBlast {
 			boolean self = target == owner;
 			Vec3 centre = target.getBoundingBox().getCenter();
 			double distance = target == directHit ? 0.0 : UnitConversion.toUnits(centre.distanceTo(position), unitsPerBlock);
-			double damage = ExplosionMath.splashDamage(DAMAGE, distance, self ? RADIUS_SELF : RADIUS);
+			// Урон по чужим зависит от расстояния между стрелком и целью в момент попадания.
+			double base = self || owner == null
+					? DAMAGE
+					: DAMAGE * ExplosionMath.rangeMultiplier(UnitConversion.toUnits(target.distanceTo(owner), unitsPerBlock));
+			double damage = ExplosionMath.splashDamage(base, distance, self ? RADIUS_SELF : RADIUS);
 
 			if (damage <= 0.0 || target != directHit && isBlocked(level, position, centre, rocket)) {
 				continue;

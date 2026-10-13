@@ -1,0 +1,6 @@
+{
+	"item.tf2mc.rocket_launcher": "Rocket Launcher",
+	"entity.tf2mc.rocket": "Rocket",
+	"death.attack.tf2mc.blast": "%1$s blew up",
+	"death.attack.tf2mc.blast.player": "%1$s was blown up by %2$s"
+}

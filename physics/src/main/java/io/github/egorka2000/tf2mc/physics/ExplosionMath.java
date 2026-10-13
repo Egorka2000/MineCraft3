@@ -40,6 +40,15 @@ public final class ExplosionMath {
 	/** На сколько точка взрыва опускается при расчёте направления толчка, u. Добавляет толчку подъём. */
 	public static final double BLAST_ORIGIN_DROP = 10.0;
 
+	/** Множитель урона ракеты в упор. */
+	public static final double RANGE_NEAR = 1.25;
+
+	/** Множитель урона ракеты на удвоенном среднем расстоянии и дальше. */
+	public static final double RANGE_FAR = 0.528;
+
+	/** Расстояние до цели, на котором урон равен базовому, u. */
+	public static final double RANGE_MIDDLE = 512.0;
+
 	/** Объём эталонного игрока: толчок обратно пропорционален объёму халла. */
 	private static final double REFERENCE_VOLUME = 48.0 * 48.0 * 82.0;
 
@@ -80,6 +89,32 @@ public final class ExplosionMath {
 
 		double fraction = Math.max(distance, 0.0) / radius;
 		return baseDamage * (1.0 - (1.0 - EDGE_DAMAGE_FRACTION) * fraction);
+	}
+
+	/**
+	 * Множитель урона ракеты по расстоянию между стрелком и целью в момент попадания:
+	 * {@link #RANGE_NEAR} в упор, 1 на {@link #RANGE_MIDDLE}, {@link #RANGE_FAR} на удвоенном
+	 * расстоянии и дальше.
+	 *
+	 * <p>Значения в трёх точках сверены. Между ними множитель меняется линейно — это допущение:
+	 * форма кривой в источнике не приведена.
+	 *
+	 * @param distance расстояние от стрелка до цели, u
+	 */
+	public static double rangeMultiplier(double distance) {
+		if (distance <= 0.0) {
+			return RANGE_NEAR;
+		}
+
+		if (distance <= RANGE_MIDDLE) {
+			return RANGE_NEAR + (1.0 - RANGE_NEAR) * distance / RANGE_MIDDLE;
+		}
+
+		if (distance >= RANGE_MIDDLE * 2.0) {
+			return RANGE_FAR;
+		}
+
+		return 1.0 + (RANGE_FAR - 1.0) * (distance - RANGE_MIDDLE) / RANGE_MIDDLE;
 	}
 
 	/**

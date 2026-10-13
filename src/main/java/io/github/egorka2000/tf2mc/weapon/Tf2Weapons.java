@@ -3,29 +3,20 @@ package io.github.egorka2000.tf2mc.weapon;
 import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
 
-import net.fabricmc.fabric.api.event.player.UseItemCallback;
-
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageType;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.level.Level;
 
 /**
  * Оружие мода: регистрация и запуск. Пока здесь только ракета Soldier.
  *
- * <p>Своего предмета-ракетницы ещё нет. До него ракету выпускает правая кнопка мыши с огненным
- * стержнем в руке у игрока с классом и команда {@code /tf2 rocket}.
+ * <p>Стреляет ракетница {@link RocketLauncher}; отладочная команда {@code /tf2 rocket} выпускает
+ * ракету без неё и не тратит боезапас.
  */
 public final class Tf2Weapons {
 	/** Тип урона от взрыва: в обход брони, без ванильного отбрасывания и без паузы между попаданиями. */
@@ -45,18 +36,16 @@ public final class Tf2Weapons {
 					.updateInterval(1)
 					.build(ROCKET_KEY));
 
-	/** Интервал между выстрелами ракетницы: 0,8 секунды. */
-	public static final int FIRE_INTERVAL_TICKS = 16;
-
 	private Tf2Weapons() {
 	}
 
 	public static void register() {
-		UseItemCallback.EVENT.register(Tf2Weapons::useItem);
+		RocketLauncher.register();
 	}
 
 	/**
-	 * Выпускает ракету от имени игрока, если у него выбран класс.
+	 * Выпускает ракету от имени игрока, если у него выбран класс. Боезапас не тратится:
+	 * это путь отладочной команды.
 	 *
 	 * @return выпущена ли ракета
 	 */
@@ -67,26 +56,5 @@ public final class Tf2Weapons {
 
 		RocketEntity.fire(player.level(), player);
 		return true;
-	}
-
-	/** Временная ракетница: огненный стержень в руке у игрока с классом. */
-	private static InteractionResult useItem(Player player, Level level, InteractionHand hand) {
-		ItemStack stack = player.getItemInHand(hand);
-
-		if (!stack.is(Items.BLAZE_ROD) || PlayerClasses.get(player).isEmpty() || player.isSpectator()) {
-			return InteractionResult.PASS;
-		}
-
-		if (player.getCooldowns().isOnCooldown(stack)) {
-			return InteractionResult.FAIL;
-		}
-
-		if (level instanceof ServerLevel && player instanceof ServerPlayer shooter) {
-			fireRocket(shooter);
-		}
-
-		// Пауза между выстрелами считается и на клиенте, и на сервере: клиент не шлёт лишних нажатий.
-		player.getCooldowns().addCooldown(stack, FIRE_INTERVAL_TICKS);
-		return InteractionResult.SUCCESS;
 	}
 }

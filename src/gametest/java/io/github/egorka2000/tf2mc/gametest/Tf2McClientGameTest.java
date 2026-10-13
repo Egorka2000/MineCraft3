@@ -69,6 +69,14 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		server.runCommand("gamemode survival @a");
 		context.waitTicks(5);
 		assertShownHealth(context, where + ": здоровье Soldier на экране", "HP 200");
+
+		// Рядом — боезапас ракетницы, выданной вместе с классом.
+		String ammo = context.computeOnClient(client -> HealthHud.shownAmmo());
+
+		if (!"4 / 20".equals(ammo)) {
+			throw new AssertionError(where + ": боезапас на экране: ожидалось 4 / 20, получено " + ammo);
+		}
+
 		server.runCommand("execute as @a run tf2 health set 300");
 		context.waitTicks(5);
 		// Оверхил спадает на треть единицы за тик, поэтому к моменту проверки он чуть меньше 300.
