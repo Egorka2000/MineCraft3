@@ -9,6 +9,7 @@ import com.mojang.blaze3d.audio.SoundBuffer;
 import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.client.HealthHud;
 import io.github.egorka2000.tf2mc.client.WavSounds;
+import io.github.egorka2000.tf2mc.client.model.ClassModels;
 import io.github.egorka2000.tf2mc.config.ConfigManager;
 
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
@@ -18,6 +19,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestServerConnection;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestServerContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
+import net.minecraft.client.CameraType;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.sounds.WeighedSoundEvents;
 import net.minecraft.resources.Identifier;
@@ -67,6 +69,8 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		// Ваниль до включения: точка отсчёта и проверка, что мод ничего не меняет без команды.
 		assertNear(where + ": ванильная скорость", VANILLA_WALK, walkSpeed(context), 0.15);
 
+		assertDrawnByMod(context, where + ": ванильный игрок", false);
+
 		resetPlayer(context, server, connection);
 		server.runCommand("execute as @a run tf2 class soldier");
 		connection.waitForClientboundPackets();
@@ -79,6 +83,16 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		server.runCommand("gamemode survival @a");
 		context.waitTicks(5);
 		assertShownHealth(context, where + ": здоровье Soldier на экране", "HP 200");
+		assertDrawnByMod(context, where + ": игрок с классом", true);
+
+		// Отрисовка от третьего лица проходит без ошибок: стойка и бег.
+		context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_BACK));
+		context.waitTicks(10);
+		context.getInput().holdKey(options -> options.keyUp);
+		context.waitTicks(10);
+		context.getInput().releaseKey(options -> options.keyUp);
+		context.runOnClient(client -> client.options.setCameraType(CameraType.FIRST_PERSON));
+		context.waitTicks(10);
 
 		// Рядом — боезапас ракетницы, выданной вместе с классом.
 		String ammo = context.computeOnClient(client -> HealthHud.shownAmmo());
@@ -335,6 +349,19 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		context.runOnClient(client -> client.getSoundManager().play(
 				SimpleSoundInstance.forUI(SoundEvent.createVariableRangeEvent(event), 1.0f)));
 		context.waitTicks(10);
+	}
+
+	/**
+	 * Кто рисует игрока: отрисовщик моделей мода или игра. Модель класса мод берёт из ресурсов;
+	 * для проверки она лежит в ресурсах тестового мода — простая фигура из кубов.
+	 */
+	private static void assertDrawnByMod(ClientGameTestContext context, String what, boolean expected) {
+		boolean byMod = context.computeOnClient(client -> ClassModels.rendererFor(client.player) != null
+				&& client.getEntityRenderDispatcher().getRenderer(client.player) == ClassModels.rendererFor(client.player));
+
+		if (byMod != expected) {
+			throw new AssertionError(what + ": рисуется " + (byMod ? "моделью мода" : "игрой") + ", ожидалось наоборот");
+		}
 	}
 
 	/** Какой файл клиент сыграет для звука мода; {@code null}, если такого звука клиент не знает. */
