@@ -20,6 +20,7 @@ import io.github.egorka2000.tf2mc.movement.SpeedometerToggle;
 import io.github.egorka2000.tf2mc.net.Tf2Networking;
 import io.github.egorka2000.tf2mc.team.Teams;
 import io.github.egorka2000.tf2mc.team.TfTeam;
+import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
 import io.github.egorka2000.tf2mc.weapon.Tf2Weapons;
 
 import net.minecraft.commands.CommandSourceStack;
@@ -57,6 +58,7 @@ public final class Tf2Commands {
 				.then(classCommand())
 				.then(healthCommand())
 				.then(teamCommand())
+				.then(ammoCommand())
 				.then(withOptionalPlayer(
 						Commands.literal("rocket").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)),
 						(context, target) -> fireRocket(context.getSource(), target)))
@@ -250,6 +252,49 @@ public final class Tf2Commands {
 			return 0;
 		}
 
+		return 1;
+	}
+
+	/**
+	 * {@code /tf2 ammo refill [ник]} заполняет обойму и запас ракетницы, {@code /tf2 ammo set <число> [ник]}
+	 * выставляет запас, {@code /tf2 ammo add <число> [ник]} прибавляет к нему; отрицательное число
+	 * отнимает. Отладочная команда, только для операторов.
+	 */
+	private static LiteralArgumentBuilder<CommandSourceStack> ammoCommand() {
+		return Commands.literal("ammo")
+				.requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+				.then(withOptionalPlayer(Commands.literal("refill"), (context, target) -> refillAmmo(context.getSource(), target)))
+				.then(Commands.literal("set").then(withOptionalPlayer(
+						Commands.argument(AMOUNT, IntegerArgumentType.integer(0)),
+						(context, target) -> changeAmmo(context.getSource(), target, IntegerArgumentType.getInteger(context, AMOUNT), false))))
+				.then(Commands.literal("add").then(withOptionalPlayer(
+						Commands.argument(AMOUNT, IntegerArgumentType.integer()),
+						(context, target) -> changeAmmo(context.getSource(), target, IntegerArgumentType.getInteger(context, AMOUNT), true))));
+	}
+
+	private static int refillAmmo(CommandSourceStack source, ServerPlayer target) {
+		if (!RocketLauncher.refill(target)) {
+			source.sendFailure(Component.literal("tf2-mc: у игрока нет ракетницы"));
+			return 0;
+		}
+
+		return reportAmmo(source, target, RocketLauncher.ammo(target));
+	}
+
+	private static int changeAmmo(CommandSourceStack source, ServerPlayer target, int amount, boolean add) {
+		RocketLauncher.Ammo ammo = RocketLauncher.changeReserve(target, amount, add);
+
+		if (ammo == null) {
+			source.sendFailure(Component.literal("tf2-mc: у игрока нет ракетницы"));
+			return 0;
+		}
+
+		return reportAmmo(source, target, ammo);
+	}
+
+	private static int reportAmmo(CommandSourceStack source, ServerPlayer target, RocketLauncher.Ammo ammo) {
+		String whom = describeTarget(source, target);
+		source.sendSuccess(() -> Component.literal("tf2-mc: боезапас " + ammo.clip() + " / " + ammo.reserve() + whom), true);
 		return 1;
 	}
 

@@ -27,6 +27,33 @@ class ExplosionMathTest {
 	}
 
 	@Test
+	void rangeMultiplierMatchesVerifiedPoints() {
+		// docs/05-sources.md: 125% в упор, 100% на 512 u, 52,8% на 1024 u и дальше.
+		assertEquals(1.25, ExplosionMath.rangeMultiplier(0.0), 1e-9);
+		assertEquals(1.0, ExplosionMath.rangeMultiplier(512.0), 1e-9);
+		assertEquals(0.528, ExplosionMath.rangeMultiplier(1024.0), 1e-9);
+		assertEquals(0.528, ExplosionMath.rangeMultiplier(5000.0), 1e-9);
+		assertEquals(1.25, ExplosionMath.rangeMultiplier(-10.0), 1e-9);
+	}
+
+	@Test
+	void rangeMultiplierIsLinearBetweenPoints() {
+		assertEquals(1.125, ExplosionMath.rangeMultiplier(256.0), 1e-9);
+		assertEquals(0.764, ExplosionMath.rangeMultiplier(768.0), 1e-9);
+	}
+
+	@Test
+	void rangeMultiplierNeverGrowsWithDistance() {
+		double previous = ExplosionMath.rangeMultiplier(0.0);
+
+		for (double distance = 16.0; distance <= 1200.0; distance += 16.0) {
+			double current = ExplosionMath.rangeMultiplier(distance);
+			assertTrue(current <= previous + 1e-12, "множитель вырос на расстоянии " + distance);
+			previous = current;
+		}
+	}
+
+	@Test
 	void pushGrowsWithDamageAndScale() {
 		double base = ExplosionMath.pushSpeed(40.0, ExplosionMath.SCALE_OTHER, ExplosionMath.HULL_HEIGHT);
 

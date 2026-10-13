@@ -20,6 +20,7 @@ import io.github.egorka2000.tf2mc.team.Teams;
 import io.github.egorka2000.tf2mc.team.TfTeam;
 import io.github.egorka2000.tf2mc.weapon.RocketBlast;
 import io.github.egorka2000.tf2mc.weapon.RocketEntity;
+import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
 import io.github.egorka2000.tf2mc.weapon.Tf2Weapons;
 import io.netty.channel.embedded.EmbeddedChannel;
 
@@ -65,7 +66,7 @@ public class Tf2McGameTest {
 		CommandNode<CommandSourceStack> root = helper.getLevel().getServer().getCommands().getDispatcher().getRoot().getChild(Tf2Commands.ROOT);
 
 		if (root == null || root.getChild("reload") == null || root.getChild("config") == null
-				|| root.getChild("class") == null || root.getChild("team") == null || root.getChild("speed") == null) {
+				|| root.getChild("class") == null || root.getChild("team") == null || root.getChild("ammo") == null || root.getChild("rocket") == null || root.getChild("speed") == null) {
 			throw new IllegalStateException("команда /" + Tf2Commands.ROOT + " не зарегистрирована полностью");
 		}
 
@@ -421,16 +422,17 @@ public class Tf2McGameTest {
 			check(other.getHealth() == 200.0f, "взрыв ранил игрока своей команды: " + other.getHealth());
 			checkNear("игрок своей команды отброшен", 0.0, other.getDeltaMovement().length(), 1e-6);
 
-			// Чужая команда: урон 90 × (1 − 0,5 × 40,5 / 146) = 77,52, толчок 0,948 × 77,52 × 6 = 440,9 u/s.
+			// Чужая команда. Стрелок в 318,2 u от цели: множитель расстояния 1,25 − 0,25 × 318,2 / 512 = 1,0946,
+			// урон в центре 98,52. По радиусу: 98,52 × (1 − 0,5 × 40,5 / 146) = 84,85, толчок 0,948 × 84,85 × 6 = 482,7 u/s.
 			run(server.createCommandSourceStack(), "team blu tf2mc-rocket-b");
 			RocketBlast.explode(level, otherSpot, rocket, shooter, null);
-			checkNear("здоровье противника после взрыва", 200.0 - 77.52, other.getHealth(), 0.05);
-			checkNear("толчок противника вверх, u/s", 440.9, other.getDeltaMovement().y * 45.0 * 20.0, 0.5);
+			checkNear("здоровье противника после взрыва", 200.0 - 84.85, other.getHealth(), 0.05);
+			checkNear("толчок противника вверх, u/s", 482.7, other.getDeltaMovement().y * 45.0 * 20.0, 0.5);
 
-			// Прямое попадание: полный урон независимо от расстояния до центра.
+			// Прямое попадание: урон центра взрыва, 98,52, независимо от расстояния до центра цели.
 			other.setHealth(200.0f);
 			RocketBlast.explode(level, otherSpot, rocket, shooter, other);
-			checkNear("здоровье противника после прямого попадания", 200.0 - 90.0, other.getHealth(), 0.05);
+			checkNear("здоровье противника после прямого попадания", 200.0 - 98.52, other.getHealth(), 0.05);
 
 			// Стрелок был в семи блоках от этих взрывов: его они не задели.
 			check(shooter.getHealth() == 200.0f, "далёкий взрыв ранил стрелка: " + shooter.getHealth());
@@ -527,6 +529,103 @@ public class Tf2McGameTest {
 		}
 
 		helper.succeed();
+	}
+
+	// Шаг 10: ракетница. Выдаётся с классом, обойма 4 и запас 20, перезарядка по одной ракете.
+	@GameTest
+	public void rocketLauncherHasAmmoAndReloads(GameTestHelper helper) {
+		MinecraftServer server = helper.getLevel().getServer();
+		String name = "tf2mc-launcher";
+		ServerPlayer player = joinTestPlayer(helper, name);
+
+		try {
+			player.connection.handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
+			player.setGameMode(GameType.SURVIVAL);
+			player.setPos(helper.absoluteVec(new Vec3(4.5, 3.0, 4.5)));
+			// Ракеты уходят вертикально вверх и никого не задевают.
+			player.setXRot(-90.0f);
+
+			// Без класса ракетницы нет.
+			check(RocketLauncher.ammo(player) == null, "у игрока без класса есть боезапас");
+			check(!RocketLauncher.fire(player), "игрок без ракетницы выстрелил");
+
+			run(server.createCommandSourceStack(), "class soldier " + name);
+			check(player.getInventory().contains(stack -> stack.is(RocketLauncher.ITEM)), "ракетница не выдана вместе с классом");
+			checkAmmo(player, 4, 20, "после выдачи класса");
+
+			// Повторная выдача класса не даёт вторую ракетницу.
+			run(server.createCommandSourceStack(), "class soldier " + name);
+			check(player.getInventory().countItem(RocketLauncher.ITEM) == 1, "ракетниц в инвентаре: " + player.getInventory().countItem(RocketLauncher.ITEM));
+
+			// Выстрел тратит ракету; до конца паузы в 16 тиков второй выстрел невозможен.
+			check(RocketLauncher.fire(player), "первый выстрел не прошёл");
+			checkAmmo(player, 3, 20, "после первого выстрела");
+			check(!RocketLauncher.fire(player), "второй выстрел прошёл без паузы");
+			tickLauncher(server, 15);
+			check(!RocketLauncher.fire(player), "выстрел прошёл на тик раньше конца паузы");
+			tickLauncher(server, 1);
+
+			for (int shot = 2; shot <= 4; shot++) {
+				check(RocketLauncher.fire(player), "выстрел " + shot + " не прошёл");
+				tickLauncher(server, 16);
+			}
+
+			// Обойма пуста: стрелять нечем.
+			checkAmmo(player, 0, 20, "после четырёх выстрелов");
+			check(!RocketLauncher.fire(player), "выстрел с пустой обоймой прошёл");
+
+			// Перезарядка: первая ракета за 18 тиков, остальные по 16.
+			tickLauncher(server, 17);
+			checkAmmo(player, 0, 20, "за тик до первой ракеты");
+			tickLauncher(server, 1);
+			checkAmmo(player, 1, 19, "после первой ракеты");
+			tickLauncher(server, 3 * 16);
+			checkAmmo(player, 4, 16, "после полной перезарядки");
+
+			// Отладочная команда: запас, прибавка с обрезкой по наибольшему, полное пополнение.
+			run(server.createCommandSourceStack(), "ammo set 2 " + name);
+			checkAmmo(player, 4, 2, "после ammo set");
+			run(server.createCommandSourceStack(), "ammo add 100 " + name);
+			checkAmmo(player, 4, 20, "после ammo add");
+			check(RocketLauncher.fire(player), "выстрел перед пополнением не прошёл");
+			run(server.createCommandSourceStack(), "ammo refill " + name);
+			checkAmmo(player, 4, 20, "после ammo refill");
+
+			// Игрок без прав оператора боезапас не меняет.
+			run(server.createCommandSourceStack(), "ammo set 5 " + name);
+			run(player.createCommandSourceStack(), "ammo refill");
+			checkAmmo(player, 4, 5, "после команды без прав оператора");
+
+			// После смерти ракетница и полный боезапас выдаются заново.
+			player.getInventory().clearContent();
+			player = server.getPlayerList().respawn(player, false, Entity.RemovalReason.KILLED);
+			check(player.getInventory().contains(stack -> stack.is(RocketLauncher.ITEM)), "ракетница не выдана после перерождения");
+			checkAmmo(player, 4, 20, "после перерождения");
+
+			// Снятие класса забирает ракетницу и боезапас.
+			run(server.createCommandSourceStack(), "class vanilla " + name);
+			check(!player.getInventory().contains(stack -> stack.is(RocketLauncher.ITEM)), "ракетница осталась после снятия класса");
+			check(RocketLauncher.ammo(player) == null, "боезапас остался после снятия класса");
+		} finally {
+			server.getScoreboard().removePlayerFromTeam(player.getScoreboardName());
+			server.getPlayerList().remove(player);
+		}
+
+		helper.succeed();
+	}
+
+	private static void tickLauncher(MinecraftServer server, int ticks) {
+		for (int i = 0; i < ticks; i++) {
+			RocketLauncher.tick(server);
+		}
+	}
+
+	private static void checkAmmo(ServerPlayer player, int clip, int reserve, String when) {
+		RocketLauncher.Ammo ammo = RocketLauncher.ammo(player);
+
+		if (ammo == null || ammo.clip() != clip || ammo.reserve() != reserve) {
+			throw new IllegalStateException("боезапас " + when + ": ожидалось " + clip + " / " + reserve + ", получено " + ammo);
+		}
 	}
 
 	private static void checkNear(String what, double expected, double actual, double tolerance) {

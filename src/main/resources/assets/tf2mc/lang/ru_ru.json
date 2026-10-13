@@ -1,0 +1,6 @@
+{
+	"item.tf2mc.rocket_launcher": "Ракетница",
+	"entity.tf2mc.rocket": "Ракета",
+	"death.attack.tf2mc.blast": "%1$s погиб от взрыва",
+	"death.attack.tf2mc.blast.player": "%1$s взорван игроком %2$s"
+}
