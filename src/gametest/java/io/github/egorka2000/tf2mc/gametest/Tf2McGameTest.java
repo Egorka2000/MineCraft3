@@ -152,9 +152,14 @@ public class Tf2McGameTest {
 			check(player.getMaxHealth() == 200.0f, "максимум здоровья Soldier: " + player.getMaxHealth());
 			check(player.getHealth() == 200.0f, "здоровье после выдачи класса: " + player.getHealth());
 
-			// Игрок без прав оператора класс не меняет.
+			// Свой класс игрок без прав оператора меняет сам, а указать ник не может, даже свой.
+			run(player.createCommandSourceStack(), "class vanilla " + name);
+			check(PlayerClasses.get(player).isPresent(), "игрок без прав оператора применил команду с ником");
 			run(player.createCommandSourceStack(), "class vanilla");
-			check(PlayerClasses.get(player).isPresent(), "игрок без прав оператора снял себе класс");
+			check(PlayerClasses.get(player).isEmpty(), "игрок не смог снять себе класс");
+			run(player.createCommandSourceStack(), "class soldier");
+			check(PlayerClasses.get(player).orElse(null) == TfClass.SOLDIER, "игрок не смог выбрать себе класс");
+			check(player.getHealth() == 200.0f, "здоровье после выбора класса игроком: " + player.getHealth());
 
 			// Смерть и перерождение: класс и здоровье класса остаются.
 			player.setHealth(50.0f);

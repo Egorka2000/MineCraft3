@@ -108,21 +108,18 @@ public final class Tf2Commands {
 
 	/**
 	 * {@code /tf2 class} показывает свой класс; {@code /tf2 class <имя> [ник]} выдаёт класс,
-	 * {@code /tf2 class vanilla [ник]} снимает его. Выдавать и снимать класс может только оператор.
+	 * {@code /tf2 class vanilla [ник]} снимает его. Свой класс выбирает любой игрок, чужой назначает
+	 * оператор.
 	 */
 	private static LiteralArgumentBuilder<CommandSourceStack> classCommand() {
 		LiteralArgumentBuilder<CommandSourceStack> command = Commands.literal("class")
 				.executes(context -> showClass(context.getSource()));
 
 		for (TfClass tfClass : TfClass.values()) {
-			command.then(withOptionalPlayer(
-					Commands.literal(tfClass.id()).requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)),
-					(context, target) -> setClass(context.getSource(), target, tfClass)));
+			command.then(withOptionalPlayer(Commands.literal(tfClass.id()), (context, target) -> setClass(context.getSource(), target, tfClass)));
 		}
 
-		return command.then(withOptionalPlayer(
-				Commands.literal(TfClass.VANILLA_ID).requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)),
-				(context, target) -> setClass(context.getSource(), target, null)));
+		return command.then(withOptionalPlayer(Commands.literal(TfClass.VANILLA_ID), (context, target) -> setClass(context.getSource(), target, null)));
 	}
 
 	private static int showClass(CommandSourceStack source) throws CommandSyntaxException {
