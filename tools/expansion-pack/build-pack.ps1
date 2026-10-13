@@ -1,14 +1,14 @@
 ﻿# Собирает расширительный пак tf2-mc из установленной на этом компьютере Team Fortress 2.
 # Файлы Valve берутся из вашей копии игры и остаются на вашем диске; скрипт ничего не скачивает.
 #
-#   .\build-pack.ps1            собрать пак в папку pack\ рядом со скриптом
+#   .\build-pack.ps1            собрать пак в Документы\tf2mc-expansion-pack\pack
 #   .\build-pack.ps1 -List      только показать, сколько файлов попадёт в пак
 #   .\build-pack.ps1 -Zip       собрать и упаковать в tf2mc-expansion-pack.zip
 #   .\build-pack.ps1 -Tf2Dir "D:\Steam\steamapps\common\Team Fortress 2"
 
 param(
     [string]$Tf2Dir = "C:\Program Files (x86)\Steam\steamapps\common\Team Fortress 2",
-    [string]$OutDir = (Join-Path $PSScriptRoot "pack"),
+    [string]$OutDir = (Join-Path $env:USERPROFILE "Documents\tf2mc-expansion-pack\pack"),
     [string]$Only = "",
     [switch]$List,
     [switch]$Zip
@@ -134,7 +134,7 @@ if ($done.Count -ne $total) {
 }
 
 if ($Zip) {
-    $zipPath = Join-Path $PSScriptRoot "tf2mc-expansion-pack.zip"
+    $zipPath = Join-Path (Split-Path $OutDir -Parent) "tf2mc-expansion-pack.zip"
     if (Test-Path $zipPath) {
         Remove-Item -Force -Confirm:$false $zipPath
     }
