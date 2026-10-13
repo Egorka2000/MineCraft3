@@ -1,0 +1,29 @@
+{
+	"weapon.rocket_launcher.shoot": {
+		"subtitle": "subtitles.tf2mc.weapon.rocket_launcher.shoot",
+		"sounds": [
+			{
+				"name": "minecraft:entity.firework_rocket.launch",
+				"type": "event"
+			}
+		]
+	},
+	"weapon.rocket_launcher.reload": {
+		"subtitle": "subtitles.tf2mc.weapon.rocket_launcher.reload",
+		"sounds": [
+			{
+				"name": "minecraft:item.crossbow.loading_end",
+				"type": "event"
+			}
+		]
+	},
+	"weapon.rocket.explode": {
+		"subtitle": "subtitles.tf2mc.weapon.rocket.explode",
+		"sounds": [
+			{
+				"name": "minecraft:entity.generic.explode",
+				"type": "event"
+			}
+		]
+	}
+}

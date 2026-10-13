@@ -25,6 +25,8 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -122,6 +124,7 @@ public final class RocketLauncher {
 
 		store(player, magazine.fire(RULES));
 		RocketEntity.fire(player.level(), player);
+		play(player, Tf2Sounds.ROCKET_LAUNCHER_SHOOT);
 		return true;
 	}
 
@@ -162,7 +165,14 @@ public final class RocketLauncher {
 			Magazine magazine = state(player);
 
 			if (magazine != null) {
-				store(player, magazine.tick(RULES));
+				Magazine next = magazine.tick(RULES);
+
+				store(player, next);
+
+				// Обойма выросла: в неё только что зарядили ракету.
+				if (next.clip() > magazine.clip()) {
+					play(player, Tf2Sounds.ROCKET_LAUNCHER_RELOAD);
+				}
 			}
 		}
 	}
@@ -181,6 +191,11 @@ public final class RocketLauncher {
 		// На клиенте решение принимает сервер; здесь только не даём руке махать без патронов.
 		Ammo ammo = ammo(player);
 		return ammo != null && ammo.clip() > 0 ? InteractionResult.SUCCESS : InteractionResult.FAIL;
+	}
+
+	/** Звук оружия слышат все вокруг, включая самого игрока. */
+	private static void play(ServerPlayer player, SoundEvent sound) {
+		player.level().playSound(null, player.getX(), player.getEyeY(), player.getZ(), sound, SoundSource.PLAYERS, 1.0F, 1.0F);
 	}
 
 	/** Состояние обоймы игрока; после перезахода восстанавливается по сохранённому боезапасу. */

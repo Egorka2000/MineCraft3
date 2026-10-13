@@ -40,6 +40,7 @@ public final class Tf2Weapons {
 	}
 
 	public static void register() {
+		Tf2Sounds.register();
 		RocketLauncher.register();
 	}
 

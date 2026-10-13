@@ -9,7 +9,6 @@ import io.github.egorka2000.tf2mc.team.Teams;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
@@ -50,7 +49,7 @@ public final class RocketBlast {
 		double reach = UnitConversion.toBlocks(RADIUS, unitsPerBlock);
 
 		level.sendParticles(ParticleTypes.EXPLOSION, position.x, position.y, position.z, 1, 0.0, 0.0, 0.0, 0.0);
-		level.playSound(null, position.x, position.y, position.z, SoundEvents.GENERIC_EXPLODE.value(), SoundSource.PLAYERS, 2.0F, 1.0F);
+		level.playSound(null, position.x, position.y, position.z, Tf2Sounds.ROCKET_EXPLODE, SoundSource.PLAYERS, 2.0F, 1.0F);
 
 		// Запас на размер хитбокса: расстояние считается до центра цели.
 		for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, new AABB(position, position).inflate(reach + 2.0), LivingEntity::isAlive)) {

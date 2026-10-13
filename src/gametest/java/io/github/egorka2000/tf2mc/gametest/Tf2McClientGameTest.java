@@ -16,6 +16,8 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestServerConnection;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestServerContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
+import net.minecraft.client.sounds.WeighedSoundEvents;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -39,6 +41,8 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 
 	@Override
 	public void runTest(ClientGameTestContext context) {
+		assertSoundsHavePlaceholders(context);
+
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
 			runScenario(context, singleplayer.getServer(), singleplayer.getConnection(), "одиночная игра");
 		}
@@ -275,6 +279,30 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		Vec3 server = serverContext.computeOnServer(minecraftServer -> minecraftServer.getPlayerList().getPlayers().getFirst().position());
 
 		assertNear(where + ": расхождение позиции клиента и сервера", 0.0, client.distanceTo(server), 0.5);
+	}
+
+	/**
+	 * За каждым звуком мода должен стоять настоящий звук: без расширительного пака — ванильная
+	 * заглушка. Опечатка в sounds.json дала бы тишину без единой ошибки.
+	 */
+	private static void assertSoundsHavePlaceholders(ClientGameTestContext context) {
+		for (String sound : new String[] {"weapon.rocket_launcher.shoot", "weapon.rocket_launcher.reload", "weapon.rocket.explode"}) {
+			String file = soundBehind(context, sound);
+
+			if (file == null || file.equals("minecraft:empty") || file.equals("minecraft:intentionally_empty")) {
+				throw new AssertionError("за звуком " + sound + " ничего не стоит: " + file);
+			}
+
+			Tf2Mc.LOGGER.info("[звук] {} -> {}", sound, file);
+		}
+	}
+
+	/** Какой файл клиент сыграет для звука мода; {@code null}, если такого звука клиент не знает. */
+	private static String soundBehind(ClientGameTestContext context, String path) {
+		return context.computeOnClient(client -> {
+			WeighedSoundEvents events = client.getSoundManager().getSoundEvent(Tf2Mc.id(path));
+			return events == null ? null : events.getSound(RandomSource.create()).getLocation().toString();
+		});
 	}
 
 	/** Временно подменяет файл настроек сервера и перечитывает его командой. */

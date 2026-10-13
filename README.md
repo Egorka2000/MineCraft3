@@ -43,6 +43,17 @@ Minecraft 26.3, Fabric Loader 0.19.5, Fabric API 0.162.0+26.3.
 
 Подробно о командах — [docs/09-commands.md](docs/09-commands.md), о механиках мода — [docs/10-mechanics.md](docs/10-mechanics.md).
 
+## Расширительный пак
+
+Оригинальные звуки TF2 в мод не входят: без пака играют ванильные заглушки. Пак собирается на вашем компьютере из вашей установленной TF2 скриптами из `tools/expansion-pack/`:
+
+```
+powershell -ExecutionPolicy Bypass -File tools\expansion-pack\build-pack.ps1
+powershell -ExecutionPolicy Bypass -File tools\expansion-pack\convert-pack.ps1 -Install
+```
+
+Первый скрипт достаёт файлы из TF2, второй собирает из них ресурс-пак и кладёт в папку `resourcepacks` игры; для него нужен установленный Blender. Пак включается в игре в «Настройки → Наборы ресурсов». Файлы Valve остаются на вашем диске и в репозиторий не попадают.
+
 ## Документы
 
 | Файл | Что внутри |
