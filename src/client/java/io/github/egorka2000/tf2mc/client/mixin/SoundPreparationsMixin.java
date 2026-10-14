@@ -22,6 +22,7 @@ import net.minecraft.server.packs.resources.ResourceManager;
 @Mixin(targets = "net.minecraft.client.sounds.SoundManager$Preparations")
 abstract class SoundPreparationsMixin {
 	private static final FileToIdConverter WAV_LISTER = new FileToIdConverter("sounds", ".wav");
+	private static final FileToIdConverter MP3_LISTER = new FileToIdConverter("sounds", ".mp3");
 
 	@Shadow
 	private Map<Identifier, Resource> soundCache;
@@ -31,6 +32,8 @@ abstract class SoundPreparationsMixin {
 		Map<Identifier, Resource> withWav = new HashMap<>(soundCache);
 
 		withWav.putAll(WAV_LISTER.listMatchingResources(resourceManager));
+		// MP3 мод не читает, но должен их видеть, чтобы молча пропустить: см. SoundManagerMixin.
+		withWav.putAll(MP3_LISTER.listMatchingResources(resourceManager));
 		soundCache = withWav;
 	}
 }

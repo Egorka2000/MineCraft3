@@ -8,21 +8,25 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvent;
 
 /**
- * Звуки мода. Мод обращается к ним по своим именам и не знает, какой файл за ними стоит.
+ * Звуки мода. Мод обращается к ним по именам и не знает, какой файл за ними стоит.
  *
- * <p>В самом моде за каждым именем — заглушка из ванильных звуков ({@code assets/tf2mc/sounds.json}).
- * Расширительный пак подменяет их настоящими звуками: его собирает конвертер из
- * {@code tools/expansion-pack}, соответствие имён и файлов TF2 лежит там же.
+ * <p>Имена совпадают с именами звуков в таблицах самой TF2 ({@code scripts/game_sounds*.txt}),
+ * только строчными буквами: {@code Weapon_RPG.Single} — это {@code tf2mc:weapon_rpg.single}.
+ * Расширительный пак переводит в звуки Minecraft сразу все таблицы TF2, поэтому новому звуку
+ * мода не нужен новый пак: достаточно взять имя из таблицы.
+ *
+ * <p>В самом моде за каждым именем — заглушка из ванильных звуков ({@code assets/tf2mc/sounds.json}),
+ * пак подменяет её звуком TF2.
  */
 public final class Tf2Sounds {
 	/** Выстрел из ракетницы. */
-	public static final SoundEvent ROCKET_LAUNCHER_SHOOT = register("weapon.rocket_launcher.shoot");
+	public static final SoundEvent ROCKET_LAUNCHER_SHOOT = register("weapon_rpg.single");
 
 	/** В обойму ракетницы заряжена ракета. */
-	public static final SoundEvent ROCKET_LAUNCHER_RELOAD = register("weapon.rocket_launcher.reload");
+	public static final SoundEvent ROCKET_LAUNCHER_RELOAD = register("weapon_rpg.reload");
 
 	/** Взрыв ракеты. */
-	public static final SoundEvent ROCKET_EXPLODE = register("weapon.rocket.explode");
+	public static final SoundEvent ROCKET_EXPLODE = register("baseexplosioneffect.sound");
 
 	private Tf2Sounds() {
 	}

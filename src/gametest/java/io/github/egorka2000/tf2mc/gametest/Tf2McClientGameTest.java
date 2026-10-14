@@ -1,9 +1,16 @@
 package io.github.egorka2000.tf2mc.gametest;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import com.mojang.blaze3d.audio.SoundBuffer;
 import io.github.egorka2000.tf2mc.Tf2Mc;
@@ -23,6 +30,7 @@ import net.minecraft.client.CameraType;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.sounds.WeighedSoundEvents;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.packs.repository.PackRepository;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
@@ -50,6 +58,7 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 	public void runTest(ClientGameTestContext context) {
 		assertSoundsHavePlaceholders(context);
 		assertWavSoundIsLoaded(context);
+		assertExpansionPackZipIsRead(context);
 
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
 			runScenario(context, singleplayer.getServer(), singleplayer.getConnection(), "одиночная игра");
@@ -306,7 +315,7 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 	 * заглушка. Опечатка в sounds.json дала бы тишину без единой ошибки.
 	 */
 	private static void assertSoundsHavePlaceholders(ClientGameTestContext context) {
-		for (String sound : new String[] {"weapon.rocket_launcher.shoot", "weapon.rocket_launcher.reload", "weapon.rocket.explode"}) {
+		for (String sound : new String[] {"weapon_rpg.single", "weapon_rpg.reload", "baseexplosioneffect.sound"}) {
 			String file = soundBehind(context, sound);
 
 			if (file == null || file.equals("minecraft:empty") || file.equals("minecraft:intentionally_empty")) {
@@ -349,6 +358,96 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		context.runOnClient(client -> client.getSoundManager().play(
 				SimpleSoundInstance.forUI(SoundEvent.createVariableRangeEvent(event), 1.0f)));
 		context.waitTicks(10);
+	}
+
+	/**
+	 * Расширительный пак в том виде, в каком его собирает {@code convert-pack.ps1}: архив ZIP
+	 * в папке {@code resourcepacks}, звуки под именами из таблиц TF2, файлы WAV и MP3. Архив
+	 * собирается здесь же из тестового звука, файлов Valve не нужно.
+	 */
+	private static void assertExpansionPackZipIsRead(ClientGameTestContext context) {
+		String packFile = "tf2mc-expansion-test.zip";
+		Path zip = context.computeOnClient(client -> {
+			Path path = client.getResourcePackDirectory().resolve(packFile);
+
+			try (InputStream beep = client.getResourceManager().open(Identifier.fromNamespaceAndPath("tf2mc-test", "sounds/beep.wav"));
+					ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(path))) {
+				byte[] wav = beep.readAllBytes();
+				writeEntry(out, "pack.mcmeta", "{\"pack\": {\"description\": \"test\", \"min_format\": 97, \"max_format\": 97}}");
+				writeEntry(out, "assets/tf2mc/sounds.json", "{"
+						+ "\"weapon_rpg.single\": {\"replace\": true, \"sounds\": [\"tf2mc:weapons/test_shoot\"]},"
+						+ "\"soldier.yes01\": {\"replace\": true, \"sounds\": [\"tf2mc:vo/test_yes\"]}}");
+				out.putNextEntry(new ZipEntry("assets/tf2mc/sounds/weapons/test_shoot.wav"));
+				out.write(wav);
+				out.closeEntry();
+				// Содержимое MP3 не важно: мод его пока не читает и должен молча пропустить.
+				writeEntry(out, "assets/tf2mc/sounds/vo/test_yes.mp3", "ID3");
+			} catch (IOException e) {
+				throw new UncheckedIOException(e);
+			}
+
+			return path;
+		});
+
+		reloadWithPack(context, "file/" + packFile, true);
+
+		try {
+			String shoot = soundBehind(context, "weapon_rpg.single");
+			if (!"tf2mc:weapons/test_shoot".equals(shoot)) {
+				throw new AssertionError("звук из архива пака не встал вместо заглушки: " + shoot);
+			}
+
+			String loaded = context.computeOnClient(client -> {
+				try {
+					return WavSounds.load(client.getResourceManager(), Tf2Mc.id("sounds/weapons/test_shoot.wav")).size() + " байт";
+				} catch (IOException e) {
+					return "ошибка: " + e.getMessage();
+				}
+			});
+			if (!"4410 байт".equals(loaded)) {
+				throw new AssertionError("WAV из архива прочитан неверно: " + loaded);
+			}
+
+			String voice = soundBehind(context, "soldier.yes01");
+			if (voice != null && !voice.equals("minecraft:empty")) {
+				throw new AssertionError("звук из MP3 не должен играть, пока мод его не читает: " + voice);
+			}
+		} finally {
+			reloadWithPack(context, "file/" + packFile, false);
+
+			try {
+				Files.delete(zip);
+			} catch (IOException e) {
+				throw new UncheckedIOException(e);
+			}
+		}
+
+		// Без пака снова заглушка.
+		assertSoundsHavePlaceholders(context);
+	}
+
+	private static void writeEntry(ZipOutputStream out, String name, String text) throws IOException {
+		out.putNextEntry(new ZipEntry(name));
+		out.write(text.getBytes(StandardCharsets.UTF_8));
+		out.closeEntry();
+	}
+
+	/** Включает или выключает ресурс-пак и ждёт, пока игра перечитает ресурсы. */
+	private static void reloadWithPack(ClientGameTestContext context, String packId, boolean enabled) {
+		AtomicReference<CompletableFuture<Void>> reload = new AtomicReference<>();
+
+		context.runOnClient(client -> {
+			PackRepository packs = client.getResourcePackRepository();
+			packs.reload();
+
+			if (enabled ? !packs.addPack(packId) : !packs.removePack(packId)) {
+				throw new AssertionError("не удалось " + (enabled ? "включить" : "выключить") + " пак " + packId + "; есть: " + packs.getAvailableIds());
+			}
+
+			reload.set(client.reloadResourcePacks());
+		});
+		context.waitFor(client -> reload.get().isDone());
+		reload.get().join();
 	}
 
 	/**
