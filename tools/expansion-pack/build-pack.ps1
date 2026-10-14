@@ -3,15 +3,13 @@
 #
 #   .\build-pack.ps1            собрать пак в Документы\tf2mc-expansion-pack\pack
 #   .\build-pack.ps1 -List      только показать, сколько файлов попадёт в пак
-#   .\build-pack.ps1 -Zip       собрать и упаковать в tf2mc-expansion-pack.zip
 #   .\build-pack.ps1 -Tf2Dir "D:\Steam\steamapps\common\Team Fortress 2"
 
 param(
     [string]$Tf2Dir = "C:\Program Files (x86)\Steam\steamapps\common\Team Fortress 2",
     [string]$OutDir = (Join-Path $env:USERPROFILE "Documents\tf2mc-expansion-pack\pack"),
     [string]$Only = "",
-    [switch]$List,
-    [switch]$Zip
+    [switch]$List
 )
 
 $ErrorActionPreference = "Stop"
@@ -49,7 +47,7 @@ $sources = [ordered]@{
         "^materials/models/flag/",
         # Таблицы: какое событие какой звук играет, меню голосовых команд.
         "^scripts/voicecommands\.txt$",
-        "^scripts/game_sounds(_player|_weapons|_vo|_footsteps|_manifest)?\.txt$"
+        "^scripts/game_sounds[a-z0-9_]*\.txt$"
     )
     "tf2_textures_dir.vpk" = @(
         "^materials/models/player/($classes|hvyweapon|shared)/",
@@ -64,7 +62,8 @@ $sources = [ordered]@{
         "^sound/weapons/",
         "^sound/player/",
         "^sound/items/",
-        "^sound/misc/"
+        "^sound/misc/",
+        "^sound/ui/"
     )
     "tf2_sound_vo_english_dir.vpk" = @(
         # Реплики и голосовые команды классов, диктор.
@@ -131,13 +130,4 @@ Write-Host "Готово: $($done.Count) файлов, $sizeMb МБ в $OutDir"
 
 if ($done.Count -ne $total) {
     Write-Warning "Распаковано не всё: ожидалось $total файлов."
-}
-
-if ($Zip) {
-    $zipPath = Join-Path (Split-Path $OutDir -Parent) "tf2mc-expansion-pack.zip"
-    if (Test-Path $zipPath) {
-        Remove-Item -Force -Confirm:$false $zipPath
-    }
-    Compress-Archive -Path (Join-Path $OutDir "*") -DestinationPath $zipPath
-    Write-Host "Архив: $zipPath"
 }

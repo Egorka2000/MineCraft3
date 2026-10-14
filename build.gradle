@@ -81,6 +81,9 @@ dependencies {
 
 	// Скелетная анимация моделей персонажей. Нужна только клиенту: сервер работает и без неё.
 	clientImplementation "maven.modrinth:geckolib:${project.geckolib_version}"
+	// Вложена в jar мода, чтобы её не приходилось ставить отдельно. Если у игрока стоит
+	// своя GeckoLib, Fabric возьмёт более новую из двух.
+	include "maven.modrinth:geckolib:${project.geckolib_version}"
 
 	// Математика движения. Её классы кладутся прямо в jar мода, см. блок jar ниже.
 	implementation project(":physics")
@@ -161,6 +164,10 @@ def verifyJarContents = tasks.register("verifyJarContents") {
 			zip.entries().collect { it.name }
 		}
 		def missing = required.findAll { !entries.contains(it) }
+		// GeckoLib вложена в jar мода отдельным файлом.
+		if (!entries.any { it.startsWith("META-INF/jars/geckolib") && it.endsWith(".jar") }) {
+			missing.add("META-INF/jars/geckolib-*.jar")
+		}
 
 		if (!missing.isEmpty()) {
 			throw new GradleException("в jar мода нет файлов: ${missing}")

@@ -23,6 +23,7 @@ import net.minecraft.server.packs.resources.ResourceProvider;
 public final class WavSounds {
 	private static final String OGG = ".ogg";
 	private static final String WAV = ".wav";
+	private static final String MP3 = ".mp3";
 
 	private WavSounds() {
 	}
@@ -40,6 +41,18 @@ public final class WavSounds {
 
 		Identifier wav = ogg.withPath(path -> path.substring(0, path.length() - OGG.length()) + WAV);
 		return resources.getResource(wav).isPresent() ? wav : null;
+	}
+
+	/**
+	 * Вместо отсутствующего OGG лежит MP3. Так хранятся реплики классов в TF2; мод их пока
+	 * не читает, но расширительный пак уже содержит их, чтобы не пересобирать пак, когда научится.
+	 */
+	public static boolean isMp3Only(ResourceProvider resources, Identifier ogg) {
+		if (!ogg.getPath().endsWith(OGG) || resources.getResource(ogg).isPresent()) {
+			return false;
+		}
+
+		return resources.getResource(ogg.withPath(path -> path.substring(0, path.length() - OGG.length()) + MP3)).isPresent();
 	}
 
 	/** Читает WAV и готовит его для звукового движка игры. */

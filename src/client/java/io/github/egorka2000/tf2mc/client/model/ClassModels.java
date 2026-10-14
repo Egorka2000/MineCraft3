@@ -20,8 +20,8 @@ import net.minecraft.world.entity.Entity;
  * моделью со скелетной анимацией, только если установлена библиотека анимации и в ресурсах есть
  * модель; иначе остаётся обычная модель игрока со скином.
  *
- * <p>Здесь нет типов библиотеки анимации в сигнатурах, а к классам, которые от неё зависят,
- * обращение идёт только когда она установлена.
+ * <p>Здесь нет типов библиотеки анимации даже внутри методов: к классам, которые от неё зависят,
+ * обращение идёт только через {@link ClassRenderers} и только когда она установлена.
  */
 public final class ClassModels {
 	/** Файл модели, по которому мод узнаёт, что ресурс-пак принёс модель класса. */
@@ -41,7 +41,7 @@ public final class ClassModels {
 
 	/** Игра пересоздала отрисовщики сущностей: пересоздаётся и отрисовщик моделей классов. */
 	public static void reload(EntityRendererProvider.Context context, ResourceManager resources) {
-		renderer = LIBRARY_LOADED && resources.getResource(MODEL_FILE).isPresent() ? new ClassPlayerRenderer(context) : null;
+		renderer = LIBRARY_LOADED && resources.getResource(MODEL_FILE).isPresent() ? ClassRenderers.create(context) : null;
 	}
 
 	/** Отрисовщик для сущности; {@code null}, если её рисует игра. */
