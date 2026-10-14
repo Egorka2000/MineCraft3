@@ -31,6 +31,7 @@ public class Tf2McClient implements ClientModInitializer {
 
 		ClientTickEvents.END_CLIENT_TICK.register(Speedometer::tick);
 		HealthHud.register();
+		MemoryCheck.register();
 		// Своей модели у ракеты пока нет: на клиенте она невидима, путь показывают частицы.
 		EntityRenderers.register(Tf2Weapons.ROCKET, NoopRenderer::new);
 	}
