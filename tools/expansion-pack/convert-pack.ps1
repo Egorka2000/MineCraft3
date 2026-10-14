@@ -129,6 +129,7 @@ $pitchNames = @{ "PITCH_NORM" = 100.0; "PITCH_LOW" = 95.0; "PITCH_HIGH" = 120.0 
 $soundRoot = Join-Path $PackDir "sound"
 $sounds = [ordered]@{}
 $skippedEvents = 0
+$skippedSilent = 0
 
 # game_sounds_vo_phonemes.txt — не звуки, а движения губ для реплик; он лежит в паке как есть.
 $scripts = @(Get-ChildItem (Join-Path $PackDir "scripts") -Filter "game_sounds*.txt" | Where-Object { $_.Name -ne "game_sounds_vo_phonemes.txt" } | Sort-Object Name)
@@ -140,8 +141,12 @@ foreach ($scriptFile in $scripts) {
         if ($sounds.Contains($event)) { continue }
         if ($event -notmatch $validName) { $skippedEvents++; continue }
 
-        $volume = [Math]::Min(1.0, [Math]::Max(0.0, (Convert-Number (Get-Value $entry[1] "volume") $volumeNames 1.0)))
-        $pitch = [Math]::Min(2.0, [Math]::Max(0.5, (Convert-Number (Get-Value $entry[1] "pitch") $pitchNames 100.0) / 100.0))
+        $volume = [Math]::Round([Math]::Min(1.0, (Convert-Number (Get-Value $entry[1] "volume") $volumeNames 1.0)), 3)
+        $pitch = [Math]::Round([Math]::Min(2.0, [Math]::Max(0.5, (Convert-Number (Get-Value $entry[1] "pitch") $pitchNames 100.0) / 100.0)), 3)
+
+        # Звуки с нулевой громкостью в TF2 молчат, а Minecraft отвергает из-за одного такого
+        # весь sounds.json пака. Их просто нет в паке.
+        if ($volume -le 0) { $skippedSilent++; continue }
 
         $entries = @()
         foreach ($wave in (Get-Waves $entry[1])) {
@@ -153,8 +158,8 @@ foreach ($scriptFile in $scripts) {
             if ($name -notmatch $validName) { continue }
 
             $sound = [ordered]@{ name = "tf2mc:$name" }
-            if ($volume -ne 1.0) { $sound.volume = [Math]::Round($volume, 3) }
-            if ($pitch -ne 1.0) { $sound.pitch = [Math]::Round($pitch, 3) }
+            if ($volume -ne 1.0) { $sound.volume = $volume }
+            if ($pitch -ne 1.0) { $sound.pitch = $pitch }
             $entries += $sound
         }
 
@@ -224,6 +229,9 @@ Write-Host "Готово: $ZipPath, $sizeMb МБ. Файлов $added, звук�
 
 if ($skippedEvents -gt 0) {
     Write-Warning "Пропущено звуков с недопустимыми для Minecraft именами: $skippedEvents"
+}
+if ($skippedSilent -gt 0) {
+    Write-Host "Пропущено беззвучных звуков (громкость 0): $skippedSilent"
 }
 foreach ($file in $skippedFiles) {
     Write-Warning "Пропущен файл с недопустимым для Minecraft именем: $file"
