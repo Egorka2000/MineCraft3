@@ -1,10 +1,7 @@
-# Клиентские игровые тесты: настоящий клиент на виртуальном экране нажимает клавиши и измеряет
-# движение игрока в одиночной игре и на выделенном сервере.
+# Клиентские игровые тесты: настоящий клиент нажимает клавиши и измеряет движение игрока
+# в одиночной игре и на выделенном сервере.
 #
-# Запускается только вручную (вкладка Actions или `gh workflow run client-game-test.yml`).
-# На машинах GitHub без видеокарты клиент Minecraft 26.3 пока не создаёт окно:
-# "Failed to create backend OpenGL: Couldn't find matching GLX visual". Пока это не решено,
-# задача не входит в проверки PR. Локально тест проходит: `gradlew runClientGameTest`.
+# ВРЕМЕННО: подбор способа запустить клиент без видеокарты. Каждый вариант — отдельная задача.
 
 name: client-game-test
 
@@ -17,8 +14,11 @@ permissions:
 jobs:
   client-game-test:
     runs-on: ubuntu-24.04
-    # Обычный прогон занимает несколько минут; если клиент завис, незачем ждать дольше.
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [xvfb-glx, xvfb-egl, offscreen-egl]
     steps:
       - name: checkout repository
         uses: actions/checkout@v6
@@ -31,18 +31,36 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew
-      # Программный OpenGL (Mesa): на машинах CI нет видеокарты.
       - name: install software renderer
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri libglx-mesa0 libegl1 mesa-utils
-      - name: run client game tests
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri libglx-mesa0 libegl1 libegl-mesa0 libgles2 mesa-utils
+      - name: show renderer
+        run: xvfb-run -a --server-args="-screen 0 1280x720x24 +extension GLX" glxinfo -B || true
+      - name: run client game tests (xvfb-glx)
+        if: matrix.variant == 'xvfb-glx'
         run: xvfb-run -a --server-args="-screen 0 1280x720x24 +extension GLX +render -noreset" ./gradlew runClientGameTest
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
+          SDL_VIDEO_DRIVER: x11
+      - name: run client game tests (xvfb-egl)
+        if: matrix.variant == 'xvfb-egl'
+        run: xvfb-run -a --server-args="-screen 0 1280x720x24 +extension GLX +render -noreset" ./gradlew runClientGameTest
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          SDL_VIDEO_DRIVER: x11
+          SDL_VIDEO_X11_FORCE_EGL: "1"
+          SDL_VIDEO_FORCE_EGL: "1"
+      - name: run client game tests (offscreen-egl)
+        if: matrix.variant == 'offscreen-egl'
+        run: ./gradlew runClientGameTest
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          SDL_VIDEO_DRIVER: offscreen
+          EGL_PLATFORM: surfaceless
       - name: store client test logs
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: client-game-test-logs
+          name: client-game-test-logs-${{ matrix.variant }}
           path: |
             **/build/run/clientGameTest/logs/
             **/build/run/clientGameTest/crash-reports/
