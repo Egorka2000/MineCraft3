@@ -1,14 +1,20 @@
 package io.github.egorka2000.tf2mc.client.model;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
 import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
 
 import net.fabricmc.loader.api.FabricLoader;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
+import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.world.entity.Entity;
@@ -31,6 +37,9 @@ public final class ClassModels {
 
 	private static EntityRenderer<?, ?> renderer;
 
+	/** Текстуры модели TF2, зарегистрированные при прошлой перезагрузке ресурсов. */
+	private static final List<Identifier> sourceTextures = new ArrayList<>();
+
 	private ClassModels() {
 	}
 
@@ -39,9 +48,32 @@ public final class ClassModels {
 		return renderer != null;
 	}
 
-	/** Игра пересоздала отрисовщики сущностей: пересоздаётся и отрисовщик моделей классов. */
+	/**
+	 * Игра пересоздала отрисовщики сущностей: пересоздаётся и отрисовщик моделей классов.
+	 * Первой берётся модель TF2 из расширительного пака; если её нет — модель GeckoLib из
+	 * ресурс-пака; если нет и её — игрока рисует игра.
+	 */
 	public static void reload(EntityRendererProvider.Context context, ResourceManager resources) {
-		renderer = LIBRARY_LOADED && resources.getResource(MODEL_FILE).isPresent() ? ClassRenderers.create(context) : null;
+		TextureManager textureManager = Minecraft.getInstance().getTextureManager();
+
+		for (Identifier texture : sourceTextures) {
+			textureManager.release(texture);
+		}
+
+		sourceTextures.clear();
+		Optional<SourceModels.PlayerMesh> soldier = SourceModels.load(
+				resources, textureManager, SourceModels.SOLDIER, Tf2Mc.config().current().unitsPerBlock(), sourceTextures);
+
+		if (soldier.isPresent()) {
+			renderer = new SourcePlayerRenderer(context, soldier.get());
+		} else {
+			renderer = LIBRARY_LOADED && resources.getResource(MODEL_FILE).isPresent() ? ClassRenderers.create(context) : null;
+		}
+	}
+
+	/** Рисуется ли игрок с классом моделью TF2 из расширительного пака. */
+	public static boolean isSourceModel() {
+		return renderer instanceof SourcePlayerRenderer;
 	}
 
 	/** Отрисовщик для сущности; {@code null}, если её рисует игра. */
