@@ -159,13 +159,13 @@ public final class RocketLauncher {
 		return ammo(player);
 	}
 
-	/** Раз в тик сервера: паузы после выстрела и перезарядка. */
+	/** Раз в тик сервера: паузы после выстрела и перезарядка, если ракетница в руках. */
 	public static void tick(MinecraftServer server) {
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			Magazine magazine = state(player);
 
 			if (magazine != null) {
-				Magazine next = magazine.tick(RULES);
+				Magazine next = player.getMainHandItem().is(ITEM) ? magazine.tick(RULES) : magazine.holsteredTick();
 
 				store(player, next);
 

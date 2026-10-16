@@ -116,6 +116,36 @@ class MagazineTest {
 	}
 
 	@Test
+	void holsteredWeaponDoesNotReloadAndRestartsFromFirstRound() {
+		// Пустая обойма, первая ракета почти заряжена.
+		Magazine reloading = ticks(new Magazine(0, 20, 0, 0, 0), RULES.firstReloadTicks() - 1);
+		assertEquals(0, reloading.clip());
+
+		// Оружие убрано: сколько ни жди, ракет не прибавляется, прогресс сбрасывается.
+		Magazine holstered = reloading;
+		for (int i = 0; i < 200; i++) {
+			holstered = holstered.holsteredTick();
+		}
+		assertEquals(new Magazine(0, 20, 0, 0, 0), holstered);
+
+		// В руках снова: первая ракета опять заряжается полный срок.
+		assertEquals(0, ticks(holstered, RULES.firstReloadTicks() - 1).clip());
+		assertEquals(1, ticks(holstered, RULES.firstReloadTicks()).clip());
+	}
+
+	@Test
+	void cooldownRunsWhileHolstered() {
+		Magazine fired = RULES.full().fire(RULES);
+		Magazine holstered = fired;
+
+		for (int i = 0; i < RULES.fireInterval(); i++) {
+			holstered = holstered.holsteredTick();
+		}
+
+		assertTrue(holstered.canFire(), "пауза после выстрела не прошла, пока оружие убрано");
+	}
+
+	@Test
 	void reserveIsClampedToRules() {
 		Magazine state = new Magazine(4, 10, 0, 0, 0);
 

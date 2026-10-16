@@ -6,7 +6,11 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.ZipEntry;
@@ -412,6 +416,14 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			if (voice != null && !voice.equals("minecraft:empty")) {
 				throw new AssertionError("звук из MP3 не должен играть, пока мод его не читает: " + voice);
 			}
+
+			// Пак ниже мода в списке: заглушки мода читаются после пака и не должны к нему добавиться.
+			// Раньше так звучали то звуки TF2, то заглушки.
+			String order = movePackBelowMods(context, "file/" + packFile);
+			Set<String> sounds = soundsBehind(context, "weapon_rpg.single", 40);
+			if (!sounds.equals(Set.of("tf2mc:weapons/test_shoot"))) {
+				throw new AssertionError("пак ниже мода: звучат " + sounds + "; порядок паков " + order);
+			}
 		} finally {
 			reloadWithPack(context, "file/" + packFile, false);
 
@@ -430,6 +442,52 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		out.putNextEntry(new ZipEntry(name));
 		out.write(text.getBytes(StandardCharsets.UTF_8));
 		out.closeEntry();
+	}
+
+	/**
+	 * Ставит пак сразу над ванильными ресурсами, то есть ниже ресурсов модов, и перечитывает
+	 * ресурсы.
+	 *
+	 * @return получившийся порядок паков снизу вверх, для сообщения об ошибке
+	 */
+	private static String movePackBelowMods(ClientGameTestContext context, String packId) {
+		AtomicReference<CompletableFuture<Void>> reload = new AtomicReference<>();
+		AtomicReference<String> order = new AtomicReference<>();
+
+		context.runOnClient(client -> {
+			PackRepository packs = client.getResourcePackRepository();
+			List<String> selected = new ArrayList<>(packs.getSelectedIds());
+			selected.remove(packId);
+			// В самый низ, под «Стандартный»: так можно поставить пак в настройках игры, и тогда
+			// ресурсы модов, которые идут сразу после ванильных, оказываются над ним.
+			selected.add(0, packId);
+			packs.setSelected(selected);
+			order.set(String.join(", ", packs.getSelectedIds()));
+
+			List<String> actual = new ArrayList<>(packs.getSelectedIds());
+			if (actual.indexOf(packId) > actual.indexOf(Tf2Mc.MOD_ID)) {
+				throw new AssertionError("не удалось поставить пак ниже мода: " + order.get());
+			}
+
+			reload.set(client.reloadResourcePacks());
+		});
+		context.waitFor(client -> reload.get().isDone());
+		reload.get().join();
+		return order.get();
+	}
+
+	/** Какие файлы клиент выбирает для звука мода за несколько попыток. */
+	private static Set<String> soundsBehind(ClientGameTestContext context, String path, int tries) {
+		return context.computeOnClient(client -> {
+			WeighedSoundEvents events = client.getSoundManager().getSoundEvent(Tf2Mc.id(path));
+			Set<String> files = new TreeSet<>();
+
+			for (int i = 0; i < tries && events != null; i++) {
+				files.add(events.getSound(RandomSource.create(i)).getLocation().toString());
+			}
+
+			return files;
+		});
 	}
 
 	/** Включает или выключает ресурс-пак и ждёт, пока игра перечитает ресурсы. */
