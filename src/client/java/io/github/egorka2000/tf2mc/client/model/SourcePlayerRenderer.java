@@ -123,7 +123,7 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 		super.submit(state, poseStack, collector, camera);
 	}
 
-	private static void submit(SubmitNodeCollector collector, PoseStack poseStack, SourceModels.SkinnedMesh mesh, float[] vertices, int family, int light, int overlay) {
+	static void submit(SubmitNodeCollector collector, PoseStack poseStack, SourceModels.SkinnedMesh mesh, float[] vertices, int family, int light, int overlay) {
 		for (SourceModels.Draw draw : mesh.forFamily(family)) {
 			RenderType type = RenderTypes.entityCutout(draw.texture());
 			collector.submitCustomGeometry(poseStack, type, (pose, buffer) -> triangles(pose, buffer, vertices, draw.triangles(), light, overlay));

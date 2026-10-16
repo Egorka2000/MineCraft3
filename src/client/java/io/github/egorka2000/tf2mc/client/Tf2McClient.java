@@ -1,5 +1,6 @@
 package io.github.egorka2000.tf2mc.client;
 
+import io.github.egorka2000.tf2mc.client.model.RocketRenderer;
 import io.github.egorka2000.tf2mc.movement.LocalMovementState;
 import io.github.egorka2000.tf2mc.net.MovementSyncPayload;
 import io.github.egorka2000.tf2mc.net.VelocityImpulsePayload;
@@ -11,7 +12,6 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 
 import net.minecraft.client.renderer.entity.EntityRenderers;
-import net.minecraft.client.renderer.entity.NoopRenderer;
 
 public class Tf2McClient implements ClientModInitializer {
 	@Override
@@ -32,7 +32,7 @@ public class Tf2McClient implements ClientModInitializer {
 		ClientTickEvents.END_CLIENT_TICK.register(Speedometer::tick);
 		HealthHud.register();
 		MemoryCheck.register();
-		// Своей модели у ракеты пока нет: на клиенте она невидима, путь показывают частицы.
-		EntityRenderers.register(Tf2Weapons.ROCKET, NoopRenderer::new);
+		// Ракета рисуется моделью TF2 из расширительного пака; без пака она невидима.
+		EntityRenderers.register(Tf2Weapons.ROCKET, RocketRenderer::new);
 	}
 }

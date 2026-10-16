@@ -94,8 +94,10 @@ public final class SourceModel {
 		return List.copyOf(paths.stream().distinct().toList());
 	}
 
-	private static String normalize(String path) {
-		return path.replace('\\', '/').toLowerCase(Locale.ROOT);
+	/** Путь внутри {@code materials/}: прямые косые черты, строчные буквы, без пустых папок (у ракеты TF2 папка записана как {@code /models/...}). */
+	static String normalize(String path) {
+		String clean = path.replace('\\', '/').toLowerCase(Locale.ROOT).replaceAll("/{2,}", "/");
+		return clean.startsWith("/") ? clean.substring(1) : clean;
 	}
 
 	public StudioModel studio() {

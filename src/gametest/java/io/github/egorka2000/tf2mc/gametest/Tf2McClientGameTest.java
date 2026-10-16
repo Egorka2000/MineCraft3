@@ -530,6 +530,10 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 				writeEntry(out, tf2 + "models/player/soldier.mdl", TinyModel.mdl());
 				writeEntry(out, tf2 + "models/player/soldier.vvd", TinyModel.vvd(TinyModel.CHECKSUM));
 				writeEntry(out, tf2 + "models/player/soldier.dx90.vtx", TinyModel.vtx(TinyModel.CHECKSUM));
+				// Та же модель под именем ракеты.
+				writeEntry(out, tf2 + "models/weapons/w_models/w_rocket.mdl", TinyModel.mdl());
+				writeEntry(out, tf2 + "models/weapons/w_models/w_rocket.vvd", TinyModel.vvd(TinyModel.CHECKSUM));
+				writeEntry(out, tf2 + "models/weapons/w_models/w_rocket.dx90.vtx", TinyModel.vtx(TinyModel.CHECKSUM));
 				writeEntry(out, tf2 + "materials/models/test/tex_red.vmt", TinyTexture.vmt("models/test/tex_red"));
 				writeEntry(out, tf2 + "materials/models/test/tex_red.vtf", TinyTexture.solid(255, 0, 0));
 			} catch (IOException e) {
@@ -549,8 +553,14 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			}
 
 			assertDrawnByMod(context, "самодельная модель TF2", true);
-			// Отрисовка от третьего лица: ошибка в отрисовщике уронила бы клиент.
+
+			if (context.computeOnClient(client -> ClassModels.rocket().isEmpty())) {
+				throw new AssertionError("самодельная модель ракеты из пака не подключилась");
+			}
+
+			// Отрисовка от третьего лица, с ракетой в полёте: ошибка в отрисовщике уронила бы клиент.
 			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_BACK));
+			server.runCommand("execute as @a run tf2 rocket");
 			context.waitTicks(10);
 			context.runOnClient(client -> client.options.setCameraType(CameraType.FIRST_PERSON));
 		} finally {
@@ -564,7 +574,7 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			}
 		}
 
-		if (context.computeOnClient(client -> ClassModels.isSourceModel())) {
+		if (context.computeOnClient(client -> ClassModels.isSourceModel() || ClassModels.rocket().isPresent())) {
 			throw new AssertionError("модель TF2 осталась после выключения пака");
 		}
 	}
@@ -634,6 +644,27 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			context.waitTicks(5);
 			context.takeScreenshot("tf2mc-real-model-look-down");
 			context.runOnClient(client -> client.player.setXRot(0.0F));
+
+			// Ракета в полёте: камера сзади и сверху, нос ракеты должен смотреть от неё.
+			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_BACK));
+			context.waitTicks(5);
+			server.runCommand("execute as @a run tf2 rocket");
+			context.waitTicks(2);
+			context.runOnClient(client -> client.player.setXRot(40.0F));
+			context.waitTick();
+			context.takeScreenshot("tf2mc-real-model-rocket");
+			context.runOnClient(client -> client.player.setXRot(0.0F));
+			context.waitTicks(40);
+
+			// Неподвижная ракета крупно и сбоку: игрок смотрит на юг, ракета повёрнута на восток —
+			// нос должен быть слева.
+			context.runOnClient(client -> client.options.setCameraType(CameraType.FIRST_PERSON));
+			context.runOnClient(client -> client.player.setYRot(0.0F));
+			context.waitTicks(5);
+			server.runCommand("execute as @p at @s run summon tf2mc:rocket ~ ~1.4 ~2 {Rotation:[-90f,0f]}");
+			context.waitTicks(5);
+			context.takeScreenshot("tf2mc-real-model-rocket-side");
+			server.runCommand("kill @e[type=tf2mc:rocket]");
 
 			// Игрок BLU — синий скин той же модели.
 			server.runCommand("tf2 team blu @p");

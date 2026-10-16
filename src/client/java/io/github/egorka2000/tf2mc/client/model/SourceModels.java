@@ -38,6 +38,9 @@ public final class SourceModels {
 	/** Оружие Soldier в руках, от третьего лица. */
 	public static final String ROCKET_LAUNCHER = "models/weapons/c_models/c_rocketlauncher/c_rocketlauncher";
 
+	/** Ракета Soldier в полёте. */
+	public static final String ROCKET = "models/weapons/w_models/w_rocket";
+
 	/** Семейства скинов у игроков TF2. */
 	public static final int RED = 0;
 	public static final int BLU = 1;
@@ -140,6 +143,28 @@ public final class SourceModels {
 			return out;
 		}
 
+		/**
+		 * Вершины неподвижного предмета в начальной позе, в осях Minecraft: верх модели (+z Source)
+		 * вверх, ось −y модели — вдоль +z. Это не поворот тела игрока: предмет разворачивает тот,
+		 * кто его рисует.
+		 */
+		public float[] still() {
+			float[] skin = Pose.rest(bones).skinMatrices(bones);
+			float[] posed = skin(skin);
+			float[] out = new float[posed.length];
+
+			// skin() кладёт точку Source (x, y, z) в (−y, z, −x); здесь нужно (x, z, −y).
+			for (int at = 0; at < posed.length; at += STRIDE) {
+				System.arraycopy(posed, at, out, at, STRIDE);
+				out[at] = -posed[at + 2];
+				out[at + 2] = posed[at];
+				out[at + 5] = -posed[at + 7];
+				out[at + 7] = posed[at + 5];
+			}
+
+			return out;
+		}
+
 		private void put(float[] out, int v, float x, float y, float z, float[] uv, float nx, float ny, float nz) {
 			int at = v * STRIDE;
 			out[at] = x * scale;
@@ -158,6 +183,13 @@ public final class SourceModels {
 	 * модель; оружию нужны анимации тела, чтобы знать, где руки).
 	 */
 	public record PlayerMesh(SkinnedMesh body, Optional<AnimationSet> animations, Optional<SkinnedMesh> weapon) {
+	}
+
+	/** Неподвижный предмет: модель и её вершины, посчитанные один раз ({@link SkinnedMesh#still}). */
+	public record Prop(SkinnedMesh mesh, float[] vertices) {
+		public Prop(SkinnedMesh mesh) {
+			this(mesh, mesh.still());
+		}
 	}
 
 	/**
@@ -182,6 +214,16 @@ public final class SourceModels {
 		Optional<AnimationSet> animations = Optional.ofNullable(animations(resources, StudioModel.read(mdl.get()), model));
 		Optional<SkinnedMesh> weaponMesh = animations.isPresent() ? mesh(resources, textureManager, weapon, scale, textures) : Optional.empty();
 		return Optional.of(new PlayerMesh(body.get(), animations, weaponMesh));
+	}
+
+	/**
+	 * Читает модель без анимаций, например {@link #ROCKET}, и регистрирует её текстуры.
+	 *
+	 * @return пусто, если модели в ресурсах нет (пак не подключён) или она не читается
+	 */
+	public static Optional<SkinnedMesh> loadMesh(ResourceManager resources, TextureManager textureManager, String model, double unitsPerBlock,
+			List<Identifier> textures) {
+		return mesh(resources, textureManager, model, (float) (1.0 / unitsPerBlock), textures);
 	}
 
 	private static Optional<SkinnedMesh> mesh(ResourceManager resources, TextureManager textureManager, String model, float scale, List<Identifier> textures) {

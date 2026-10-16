@@ -40,7 +40,15 @@ public final class ClassModels {
 	/** Текстуры модели TF2, зарегистрированные при прошлой перезагрузке ресурсов. */
 	private static final List<Identifier> sourceTextures = new ArrayList<>();
 
+	/** Модель ракеты TF2 из расширительного пака; пусто — ракета невидима. */
+	private static Optional<SourceModels.Prop> rocket = Optional.empty();
+
 	private ClassModels() {
+	}
+
+	/** Модель ракеты TF2, если расширительный пак подключён. */
+	public static Optional<SourceModels.Prop> rocket() {
+		return rocket;
 	}
 
 	/** Рисуется ли сейчас игрок с классом моделью из ресурс-пака. */
@@ -61,6 +69,8 @@ public final class ClassModels {
 		}
 
 		sourceTextures.clear();
+		rocket = SourceModels.loadMesh(resources, textureManager, SourceModels.ROCKET, Tf2Mc.config().current().unitsPerBlock(), sourceTextures)
+				.map(SourceModels.Prop::new);
 		Optional<SourceModels.PlayerMesh> soldier = SourceModels.load(
 				resources, textureManager, SourceModels.SOLDIER, SourceModels.ROCKET_LAUNCHER, Tf2Mc.config().current().unitsPerBlock(), sourceTextures);
 
