@@ -199,3 +199,5 @@
 | Вершины VVD, таблица поправок | [VDC, VVD](https://developer.valvesoftware.com/wiki/VVD) | сверено, проверено на модели Soldier |
 | Полосы и вершины VTX, упаковка без выравнивания | [VDC, VTX](https://developer.valvesoftware.com/wiki/VTX) | сверено, проверено на модели Soldier |
 | Кость (216 байт), часть тела (16), модель (148), сетка (116), хитбокс (68), подключённая модель (8) | Source SDK 2013, `src/public/studio.h`: на вики этих структур нет | сверено, проверено на модели Soldier |
+| Текстуры VTF: заголовок, ресурсы, порядок уровней детализации, номера форматов | [VDC, VTF](https://developer.valvesoftware.com/wiki/VTF_(Valve_Texture_Format)) | сверено, проверено на текстуре Soldier |
+| Распаковка DXT1, DXT3, DXT5 | открытое описание сжатия S3TC (BC1–BC3) | проверено тестами и на текстуре Soldier |
