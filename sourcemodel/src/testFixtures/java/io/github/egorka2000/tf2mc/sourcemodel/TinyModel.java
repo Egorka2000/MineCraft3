@@ -161,6 +161,85 @@ public final class TinyModel {
 		return out.array();
 	}
 
+	/**
+	 * Файл анимаций для крошечной модели: те же две кости, параметр позы {@code move_x},
+	 * последовательность {@code idle} (по кругу) с одной анимацией на 3 кадра. В анимации
+	 * дочерняя кость поворачивается вокруг z на 0, 1 и 2 радиана и сдвинута по x на 2,5.
+	 */
+	public static byte[] animations() {
+		ByteBuffer out = buffer(1400);
+		out.put(0, "IDST".getBytes(StandardCharsets.US_ASCII));
+		out.putInt(4, 48);
+		putString(out, 12, "test/tiny_animations.mdl");
+
+		// Строки — в конце файла, за всеми структурами.
+		int root = 1330;
+		int child = putString(out, root, "root");
+		int seqName = putString(out, child, "child");
+		int animName = putString(out, seqName, "idle");
+		int paramName = putString(out, animName, "a_idle");
+		putString(out, paramName, "move_x");
+
+		out.putInt(156, 2);
+		out.putInt(160, 408);
+		bone(out, 408, root, -1, 0.0F);
+		bone(out, 408 + 216, child, 0, 10.0F);
+		// Масштабы сжатия дочерней кости: углы по 0,01, смещения по 0,5.
+		out.putFloat(408 + 216 + 72, 0.5F);
+		out.putFloat(408 + 216 + 92, 0.01F);
+
+		// Параметр позы.
+		out.putInt(300, 1);
+		out.putInt(304, 840);
+		out.putInt(840, paramName - 840);
+		out.putFloat(848, -1.0F);
+		out.putFloat(852, 1.0F);
+
+		// Описание анимации: 30 кадров в секунду, 3 кадра, данные — с 1000.
+		int anim = 860;
+		out.putInt(180, 1);
+		out.putInt(184, anim);
+		out.putInt(anim + 4, animName - anim);
+		out.putFloat(anim + 8, 30.0F);
+		out.putInt(anim + 16, 3);
+		out.putInt(anim + 56, 1000 - anim);
+
+		// Данные дочерней кости: анимированные углы и смещения.
+		int data = 1000;
+		out.put(data, (byte) 1);
+		out.put(data + 1, (byte) 0x0C);
+		// Указатели дорожек углов (x y z) и смещений (x y z) — от начала своей тройки.
+		out.putShort(data + 4 + 4, (short) 12);
+		out.putShort(data + 10, (short) 14);
+		// Дорожка угла z: три значения на три кадра.
+		int rotation = data + 4 + 12;
+		out.put(rotation, (byte) 3);
+		out.put(rotation + 1, (byte) 3);
+		out.putShort(rotation + 2, (short) 0);
+		out.putShort(rotation + 4, (short) 100);
+		out.putShort(rotation + 6, (short) 200);
+		// Дорожка смещения x: одно значение на все три кадра.
+		int position = data + 10 + 14;
+		out.put(position, (byte) 1);
+		out.put(position + 1, (byte) 3);
+		out.putShort(position + 2, (short) 5);
+
+		// Последовательность «idle» по кругу, одна анимация.
+		int seq = 1100;
+		out.putInt(188, 1);
+		out.putInt(192, seq);
+		out.putInt(seq + 4, seqName - seq);
+		out.putInt(seq + 12, 1);
+		out.putInt(seq + 56, 1);
+		out.putInt(seq + 60, 1320 - seq);
+		out.putInt(seq + 68, 1);
+		out.putInt(seq + 72, 1);
+		out.putInt(seq + 76, -1);
+		out.putInt(seq + 80, -1);
+		out.putShort(1320, (short) 0);
+		return out.array();
+	}
+
 	private static void bone(ByteBuffer out, int offset, int name, int parent, float z) {
 		out.putInt(offset, name - offset);
 		out.putInt(offset + 4, parent);

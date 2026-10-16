@@ -11,4 +11,14 @@ import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 public final class ClassRenderState extends AvatarRenderState {
 	/** Семейство скинов модели TF2: команда игрока ({@link SourceModels#RED} или {@link SourceModels#BLU}). */
 	public int skinFamily;
+
+	/** Последовательность анимации TF2, например {@code run_PRIMARY}; пусто — начальная поза. */
+	public String sequence = "";
+
+	/** Доля проигрывания последовательности, 0..1. */
+	public float cycle;
+
+	/** Движение относительно тела: вперёд и влево, доли наибольшей скорости класса, −1..1. */
+	public float moveForward;
+	public float moveLeft;
 }

@@ -618,6 +618,13 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			context.waitTicks(10);
 			context.takeScreenshot("tf2mc-real-model-back");
 
+			// На бегу: анимация бега вместо стойки.
+			context.getInput().holdKey(options -> options.keyUp);
+			context.waitTicks(8);
+			context.takeScreenshot("tf2mc-real-model-run");
+			context.getInput().releaseKey(options -> options.keyUp);
+			context.waitTicks(10);
+
 			// Игрок BLU — синий скин той же модели.
 			server.runCommand("tf2 team blu @p");
 			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_FRONT));
