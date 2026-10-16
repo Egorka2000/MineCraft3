@@ -13,6 +13,7 @@ import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.block.PickupBlock;
 import io.github.egorka2000.tf2mc.block.Tf2Blocks;
 import io.github.egorka2000.tf2mc.clazz.ClassHealth;
+import io.github.egorka2000.tf2mc.clazz.PendingChoice;
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
 import io.github.egorka2000.tf2mc.clazz.TfClass;
 import io.github.egorka2000.tf2mc.command.Tf2Commands;
@@ -162,10 +163,14 @@ public class Tf2McGameTest {
 			// Свой класс игрок без прав оператора меняет сам, а указать ник не может, даже свой.
 			run(player.createCommandSourceStack(), "class vanilla " + name);
 			check(PlayerClasses.get(player).isPresent(), "игрок без прав оператора применил команду с ником");
+			// Свой выбор при уже выбранном классе запоминается до шкафа или возрождения.
 			run(player.createCommandSourceStack(), "class vanilla");
-			check(PlayerClasses.get(player).isEmpty(), "игрок не смог снять себе класс");
+			check(PlayerClasses.get(player).isPresent(), "свой выбор класса применился сразу, а не запомнился");
+			check(PendingChoice.pendingClass(player).orElse("").equals("vanilla"), "выбор класса не запомнен");
+			// Выбор текущего класса отменяет запомненный.
 			run(player.createCommandSourceStack(), "class soldier");
-			check(PlayerClasses.get(player).orElse(null) == TfClass.SOLDIER, "игрок не смог выбрать себе класс");
+			check(PlayerClasses.get(player).orElse(null) == TfClass.SOLDIER, "класс игрока изменился");
+			check(PendingChoice.pendingClass(player).isEmpty(), "выбор текущего класса не отменил запомненный");
 			check(player.getHealth() == 200.0f, "здоровье после выбора класса игроком: " + player.getHealth());
 
 			// Смерть и перерождение: класс и здоровье класса остаются.
@@ -389,7 +394,7 @@ public class Tf2McGameTest {
 			player.connection.player = player;
 			checkOnSpawn(helper, player, red, "после перерождения в RED");
 
-			run(player.createCommandSourceStack(), "team blu");
+			run(server.createCommandSourceStack(), "team blu tf2mc-spawn");
 			checkOnSpawn(helper, player, blu, "после перехода в BLU");
 
 			// Сломанная точка вычёркивается: у BLU точек не остаётся, игрок остаётся на месте.
@@ -477,10 +482,97 @@ public class Tf2McGameTest {
 		helper.succeed();
 	}
 
+	// Шаг 12а: шкаф пополнения и отложенный выбор класса и команды.
+	@GameTest
+	public void resupplyLockerRefillsAndAppliesChoice(GameTestHelper helper) {
+		MinecraftServer server = helper.getLevel().getServer();
+		String name = "tf2mc-locker";
+		ServerPlayer player = joinTestPlayer(helper, name);
+		BlockPos redLocker = new BlockPos(3, 1, 3);
+		BlockPos bluLocker = new BlockPos(3, 1, 6);
+		BlockPos bluSpawn = new BlockPos(6, 1, 1);
+
+		try {
+			player.connection.handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
+			player.setGameMode(GameType.SURVIVAL);
+			helper.setBlock(redLocker, Tf2Blocks.RED_RESUPPLY);
+			helper.setBlock(bluLocker, Tf2Blocks.BLU_RESUPPLY);
+			helper.setBlock(bluSpawn, Tf2Blocks.BLU_SPAWN);
+
+			// Первый выбор — сразу: класс игроку без класса, команда нейтральному.
+			run(player.createCommandSourceStack(), "class soldier");
+			run(player.createCommandSourceStack(), "team red");
+			check(PlayerClasses.get(player).orElse(null) == TfClass.SOLDIER, "первый выбор класса не применён сразу");
+			check(Teams.get(player).orElse(null) == TfTeam.RED, "первый выбор команды не применён сразу");
+
+			// Раненый, горящий, без ракет. Вдали от шкафа ничего не меняется.
+			player.setHealth(50.0f);
+			player.setRemainingFireTicks(100);
+			run(server.createCommandSourceStack(), "ammo set 0 " + name);
+			check(RocketLauncher.fire(player), "выстрел перед пополнением не прошёл");
+			standAt(helper, player, new Vec3(0.5, 1.0, 0.5));
+			check(player.getHealth() == 50.0f, "шкаф сработал издалека");
+
+			// Чужой шкаф не служит.
+			standAt(helper, player, new Vec3(4.5, 1.0, 6.5));
+			check(player.getHealth() == 50.0f, "шкаф BLU пополнил игрока RED");
+
+			// Свой шкаф вплотную: полное здоровье, огонь потушен, боезапас целиком, включая обойму.
+			standAt(helper, player, new Vec3(4.5, 1.0, 3.5));
+			check(player.getHealth() == 200.0f, "здоровье после шкафа: " + player.getHealth());
+			check(!player.isOnFire(), "шкаф не потушил огонь");
+			checkAmmo(player, 4, 20, "после шкафа");
+
+			// Свой выбор класса запоминается и применяется у шкафа.
+			run(player.createCommandSourceStack(), "class vanilla");
+			check(PlayerClasses.get(player).isPresent(), "смена класса применилась вдали от шкафа");
+			standAt(helper, player, new Vec3(4.5, 1.0, 3.5));
+			check(PlayerClasses.get(player).isEmpty(), "запомненный класс не применён у шкафа");
+			check(RocketLauncher.ammo(player) == null, "у ванильного игрока осталась ракетница");
+
+			// Свой выбор команды тоже: у шкафа игрок переходит в BLU и переносится на её точку.
+			run(server.createCommandSourceStack(), "class soldier " + name);
+			run(player.createCommandSourceStack(), "team blu");
+			check(Teams.get(player).orElse(null) == TfTeam.RED, "смена команды применилась вдали от шкафа");
+			standAt(helper, player, new Vec3(4.5, 1.0, 3.5));
+			check(Teams.get(player).orElse(null) == TfTeam.BLU, "запомненная команда не применена у шкафа");
+			checkOnSpawn(helper, player, bluSpawn, "после смены команды у шкафа");
+
+			// Запомненный класс применяется и при возрождении.
+			run(player.createCommandSourceStack(), "class vanilla");
+			player = server.getPlayerList().respawn(player, false, Entity.RemovalReason.KILLED);
+			player.connection.player = player;
+			check(PlayerClasses.get(player).isEmpty(), "запомненный класс не применён при возрождении");
+			check(PendingChoice.pendingClass(player).isEmpty(), "запомненный класс остался после возрождения");
+			check(!player.getInventory().contains(stack -> stack.is(RocketLauncher.ITEM)), "ванильный игрок возродился с ракетницей");
+
+			// Оператор с ником меняет сразу.
+			run(server.createCommandSourceStack(), "class soldier " + name);
+			run(server.createCommandSourceStack(), "team red " + name);
+			check(PlayerClasses.get(player).isPresent() && Teams.get(player).orElse(null) == TfTeam.RED, "оператор с ником не применил выбор сразу");
+		} finally {
+			for (BlockPos pos : new BlockPos[] {redLocker, bluLocker, bluSpawn}) {
+				helper.setBlock(pos, Blocks.AIR);
+			}
+			TeamSpawns.of(server, TfTeam.BLU);
+			run(server.createCommandSourceStack(), "class vanilla " + name);
+			server.getScoreboard().removePlayerFromTeam(player.getScoreboardName());
+			server.getPlayerList().remove(player);
+		}
+
+		helper.succeed();
+	}
+
+	/** Ставит игрока в точку площадки и даёт сработать блокам рядом. */
+	private static void standAt(GameTestHelper helper, ServerPlayer player, Vec3 relative) {
+		player.setPos(helper.absoluteVec(relative));
+		Tf2Blocks.touchBlocks(helper.getLevel().getServer());
+	}
+
 	/** Ставит игрока в блок и даёт ему подобрать то, что там лежит. */
 	private static void standIn(GameTestHelper helper, ServerPlayer player, BlockPos pos) {
 		player.setPos(Vec3.atBottomCenterOf(helper.absolutePos(pos)));
-		Tf2Blocks.touchPickups(helper.getLevel().getServer());
+		Tf2Blocks.touchBlocks(helper.getLevel().getServer());
 	}
 
 	private static boolean available(GameTestHelper helper, BlockPos pos) {

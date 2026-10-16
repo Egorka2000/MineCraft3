@@ -319,7 +319,7 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 	 * заглушка. Опечатка в sounds.json дала бы тишину без единой ошибки.
 	 */
 	private static void assertSoundsHavePlaceholders(ClientGameTestContext context) {
-		for (String sound : new String[] {"weapon_rpg.single", "weapon_rpg.reload", "baseexplosioneffect.sound", "healthkit.touch", "ammopack.touch", "item.materialize"}) {
+		for (String sound : new String[] {"weapon_rpg.single", "weapon_rpg.reload", "baseexplosioneffect.sound", "healthkit.touch", "ammopack.touch", "item.materialize", "regenerate.touch"}) {
 			String file = soundBehind(context, sound);
 
 			if (file == null || file.equals("minecraft:empty") || file.equals("minecraft:intentionally_empty")) {

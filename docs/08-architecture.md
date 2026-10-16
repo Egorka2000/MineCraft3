@@ -57,14 +57,14 @@ src/main  io.github.egorka2000.tf2mc
                        без классов игры), UnitConversion (пересчёт единиц)
     mixin/             миксины общего кода
     config/            файл параметров, перечитывание
-    clazz/             классы TF2, хранение класса игрока
+    clazz/             классы TF2, хранение класса игрока; PendingChoice — запомненные класс и команда
     team/              команды игроков поверх ванильной таблицы счёта; TeamSpawns — точки возрождения команд
     weapon/            ракета, взрыв, запуск
     weapon/            оружие, боезапас, перезарядка
     entity/            ракета и другие снаряды
     net/               пакеты
     block/             блоки для игры: Tf2Blocks (регистрация, вкладка творческого инвентаря, подбор),
-                       TeamSpawnBlock, PickupBlock (аптечки и патроны)
+                       TeamSpawnBlock, PickupBlock (аптечки и патроны), ResupplyBlock (шкаф)
     command/           /tf2 ...
 
 src/client  io.github.egorka2000.tf2mc.client

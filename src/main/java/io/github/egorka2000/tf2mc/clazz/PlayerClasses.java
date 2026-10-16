@@ -51,8 +51,12 @@ public final class PlayerClasses {
 			applyHealth(newPlayer, get(oldPlayer), true);
 
 			// Вещи после смерти теряются: оружие класса выдаётся заново, с полным боезапасом.
+			// Ванильному игроку оружие класса не положено, даже если вещи сохраняются при смерти:
+			// он мог стать ванильным перед самым возрождением (PendingChoice).
 			if (get(oldPlayer).isPresent()) {
 				RocketLauncher.equip(newPlayer);
+			} else {
+				RocketLauncher.unequip(newPlayer);
 			}
 		});
 		// При входе — на случай, если сохранённые данные игрока разошлись с описанием класса
