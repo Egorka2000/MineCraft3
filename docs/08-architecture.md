@@ -64,7 +64,8 @@ src/main  io.github.egorka2000.tf2mc
     entity/            ракета и другие снаряды
     net/               пакеты
     block/             блоки для игры: Tf2Blocks (регистрация, вкладка творческого инвентаря, подбор),
-                       TeamSpawnBlock, PickupBlock (аптечки и патроны), ResupplyBlock (шкаф)
+                       TeamSpawnBlock, PickupBlock (аптечки и патроны), ResupplyBlock (шкаф),
+                       SpawnDoorBlock (дверь: форма столкновения зависит от команды игрока)
     command/           /tf2 ...
 
 src/client  io.github.egorka2000.tf2mc.client

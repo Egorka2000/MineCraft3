@@ -52,6 +52,7 @@ final class TerrainScenarios {
 		scenarios.edgeStartsFallFromZero();
 		scenarios.shallowWaterJumpWorks();
 		scenarios.ladderIsClimbed();
+		scenarios.spawnDoorPassesOwnTeamOnly();
 		scenarios.clear();
 	}
 
@@ -101,6 +102,26 @@ final class TerrainScenarios {
 		near("остановка перед целым блоком, z", OBSTACLE_Z - HALF_WIDTH, end.z, 0.02);
 		near("высота не изменилась", Y, end.y, 0.001);
 		agree();
+	}
+
+	// Дверь базы RED: игрок RED проходит сквозь неё, игрок BLU упирается. Движение считает клиент,
+	// поэтому проверка здесь, а не только на сервере: клиент должен знать команду игрока.
+	private void spawnDoorPassesOwnTeamOnly() {
+		String door = "fill -2 " + Y + " " + OBSTACLE_Z + " 2 " + (Y + 2) + " " + OBSTACLE_Z + " tf2mc:red_spawn_door";
+
+		server.runCommand("tf2 team red @p");
+		build(door);
+		Vec3 passed = walkForward(40);
+		check("игрок RED прошёл сквозь дверь RED", passed.z > OBSTACLE_Z + 2.0, "z = " + passed.z);
+		agree();
+
+		server.runCommand("tf2 team blu @p");
+		build(door);
+		Vec3 stopped = walkForward(40);
+		near("игрок BLU остановлен дверью RED, z", OBSTACLE_Z - HALF_WIDTH, stopped.z, 0.02);
+		agree();
+
+		server.runCommand("team leave @p");
 	}
 
 	// Прыжок TF2 (1,16 блока) выше целого блока: с разбега игрок его перепрыгивает.

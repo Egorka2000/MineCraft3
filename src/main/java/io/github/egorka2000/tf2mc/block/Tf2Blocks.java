@@ -22,6 +22,7 @@ import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.MapColor;
@@ -54,6 +55,10 @@ public final class Tf2Blocks {
 	public static final Block RED_RESUPPLY = register("red_resupply", properties -> new ResupplyBlock(TfTeam.RED, properties), MapColor.COLOR_RED);
 	public static final Block BLU_RESUPPLY = register("blu_resupply", properties -> new ResupplyBlock(TfTeam.BLU, properties), MapColor.COLOR_BLUE);
 
+	/** Двери зон возрождения: пропускают только свою команду. Как стекло: не душат и не заслоняют вид изнутри. */
+	public static final Block RED_SPAWN_DOOR = register("red_spawn_door", properties -> new SpawnDoorBlock(TfTeam.RED, door(properties)), MapColor.COLOR_RED);
+	public static final Block BLU_SPAWN_DOOR = register("blu_spawn_door", properties -> new SpawnDoorBlock(TfTeam.BLU, door(properties)), MapColor.COLOR_BLUE);
+
 	/** Шкаф срабатывает, если игрок подошёл к нему не дальше чем на столько блоков. */
 	public static final double RESUPPLY_REACH = 1.0;
 
@@ -69,6 +74,8 @@ public final class Tf2Blocks {
 						output.accept(BLU_SPAWN);
 						output.accept(RED_RESUPPLY);
 						output.accept(BLU_RESUPPLY);
+						output.accept(RED_SPAWN_DOOR);
+						output.accept(BLU_SPAWN_DOOR);
 						output.accept(SMALL_HEALTH_KIT);
 						output.accept(MEDIUM_HEALTH_KIT);
 						output.accept(LARGE_HEALTH_KIT);
@@ -117,6 +124,15 @@ public final class Tf2Blocks {
 
 	private static Iterable<BlockPos> blocksIn(AABB box) {
 		return BlockPos.betweenClosed(BlockPos.containing(box.minX, box.minY, box.minZ), BlockPos.containing(box.maxX, box.maxY, box.maxZ));
+	}
+
+	private static BlockBehaviour.Properties door(BlockBehaviour.Properties properties) {
+		return properties
+				.noOcclusion()
+				.isViewBlocking((state, level, pos, box) -> false)
+				.isSuffocating(Blocks::never)
+				.isRedstoneConductor(Blocks::never)
+				.isValidSpawn(Blocks::never);
 	}
 
 	private static Block pickup(String name, PickupBlock.Kind kind, double fraction, int height) {
