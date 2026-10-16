@@ -85,7 +85,8 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		assertDrawnByMod(context, where + ": ванильный игрок", false);
 
 		resetPlayer(context, server, connection);
-		server.runCommand("execute as @a run tf2 class soldier");
+		// Оператор с ником: класс меняется сразу, без шкафа пополнения.
+		server.runCommand("tf2 class soldier @p");
 		connection.waitForClientboundPackets();
 		context.waitTicks(2);
 
@@ -180,7 +181,7 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		connection.waitForClientboundPackets();
 
 		resetPlayer(context, server, connection);
-		server.runCommand("execute as @a run tf2 class vanilla");
+		server.runCommand("tf2 class vanilla @p");
 		connection.waitForClientboundPackets();
 		context.waitTicks(2);
 		assertNear(where + ": максимум здоровья после снятия класса", 20.0, clientMaxHealth(context), 0.001);
