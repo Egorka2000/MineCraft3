@@ -35,8 +35,12 @@ public final class StudioModel {
 	 * @param position   положение относительно родителя, x y z
 	 * @param rotation   поворот относительно родителя, кватернион x y z w
 	 * @param poseToBone матрица 3×4 по строкам: из пространства модели в пространство кости
+	 * @param euler         тот же поворот углами x y z (радианы): к ним прибавляются сжатые анимации
+	 * @param positionScale множители сжатых смещений в анимациях, x y z
+	 * @param rotationScale множители сжатых углов в анимациях, x y z
 	 */
-	public record Bone(String name, int parent, float[] position, float[] rotation, float[] poseToBone) {
+	public record Bone(String name, int parent, float[] position, float[] rotation, float[] poseToBone,
+			float[] euler, float[] positionScale, float[] rotationScale) {
 	}
 
 	/**
@@ -103,7 +107,7 @@ public final class StudioModel {
 				readBones(in), readBodyParts(in), readTextures(in), readTextureDirs(in), readSkins(in), readHitboxSets(in), readIncludeModels(in));
 	}
 
-	private static List<Bone> readBones(Bytes in) {
+	static List<Bone> readBones(Bytes in) {
 		int count = in.int32(156);
 		int offset = in.int32(160);
 		in.checkArray(offset, count, BONE_SIZE, "кости");
@@ -119,7 +123,8 @@ public final class StudioModel {
 			}
 
 			bones.add(new Bone(in.string(bone + in.int32(bone)), in.int32(bone + 4),
-					floats(in, bone + 32, 3), floats(in, bone + 44, 4), poseToBone));
+					floats(in, bone + 32, 3), floats(in, bone + 44, 4), poseToBone,
+					floats(in, bone + 60, 3), floats(in, bone + 72, 3), floats(in, bone + 84, 3)));
 		}
 
 		return List.copyOf(bones);
@@ -247,7 +252,7 @@ public final class StudioModel {
 		return List.copyOf(names);
 	}
 
-	private static float[] floats(Bytes in, int offset, int count) {
+	static float[] floats(Bytes in, int offset, int count) {
 		float[] values = new float[count];
 
 		for (int i = 0; i < count; i++) {
