@@ -1,0 +1,10 @@
+{
+	"variants": {
+		"enabled=true": {
+			"model": "tf2mc:block/medium_health_kit"
+		},
+		"enabled=false": {
+			"model": "tf2mc:block/pickup_base"
+		}
+	}
+}

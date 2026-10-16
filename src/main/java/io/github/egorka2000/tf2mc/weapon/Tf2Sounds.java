@@ -28,6 +28,15 @@ public final class Tf2Sounds {
 	/** Взрыв ракеты. */
 	public static final SoundEvent ROCKET_EXPLODE = register("baseexplosioneffect.sound");
 
+	/** Подобрана аптечка. */
+	public static final SoundEvent HEALTH_KIT_TOUCH = register("healthkit.touch");
+
+	/** Подобраны патроны. */
+	public static final SoundEvent AMMO_PACK_TOUCH = register("ammopack.touch");
+
+	/** На подставке появилась новая аптечка или патроны. */
+	public static final SoundEvent ITEM_MATERIALIZE = register("item.materialize");
+
 	private Tf2Sounds() {
 	}
 

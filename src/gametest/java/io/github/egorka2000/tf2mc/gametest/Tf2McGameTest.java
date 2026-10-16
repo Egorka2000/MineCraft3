@@ -10,6 +10,7 @@ import java.util.UUID;
 import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.tree.CommandNode;
 import io.github.egorka2000.tf2mc.Tf2Mc;
+import io.github.egorka2000.tf2mc.block.PickupBlock;
 import io.github.egorka2000.tf2mc.block.Tf2Blocks;
 import io.github.egorka2000.tf2mc.clazz.ClassHealth;
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
@@ -405,6 +406,85 @@ public class Tf2McGameTest {
 		}
 
 		helper.succeed();
+	}
+
+	// Шаг 12а: аптечки и патроны. Числа: маленькие 20%, средние 50%, большие 100%; без оверхила.
+	@GameTest
+	public void pickupsRestoreHealthAndAmmo(GameTestHelper helper) {
+		MinecraftServer server = helper.getLevel().getServer();
+		ServerLevel level = helper.getLevel();
+		String name = "tf2mc-pickup";
+		ServerPlayer player = joinTestPlayer(helper, name);
+		BlockPos small = new BlockPos(1, 1, 1);
+		BlockPos large = new BlockPos(3, 1, 1);
+		BlockPos ammo = new BlockPos(5, 1, 1);
+
+		try {
+			player.connection.handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
+			player.setGameMode(GameType.SURVIVAL);
+			helper.setBlock(small, Tf2Blocks.SMALL_HEALTH_KIT);
+			helper.setBlock(large, Tf2Blocks.LARGE_HEALTH_KIT);
+			helper.setBlock(ammo, Tf2Blocks.MEDIUM_AMMO_PACK);
+
+			// Игрок без класса аптечки не подбирает.
+			player.setHealth(10.0f);
+			standIn(helper, player, small);
+			check(player.getHealth() == 10.0f && available(helper, small), "игрок без класса подобрал аптечку");
+
+			run(server.createCommandSourceStack(), "class soldier " + name);
+
+			// Маленькая аптечка: 20% от 200 = 40. Подставка пустеет, через 10 секунд новая.
+			player.setHealth(100.0f);
+			standIn(helper, player, small);
+			check(player.getHealth() == 140.0f, "после маленькой аптечки здоровье " + player.getHealth());
+			check(!available(helper, small), "аптечка осталась на подставке");
+			check(level.getBlockTicks().hasScheduledTick(helper.absolutePos(small), Tf2Blocks.SMALL_HEALTH_KIT), "новая аптечка не запланирована");
+			standIn(helper, player, small);
+			check(player.getHealth() == 140.0f, "пустая подставка вылечила");
+			level.getBlockState(helper.absolutePos(small)).tick(level, helper.absolutePos(small), level.getRandom());
+			check(available(helper, small), "новая аптечка не появилась");
+
+			// Большая аптечка лечит до максимума, но не выше: оверхила нет.
+			standIn(helper, player, large);
+			check(player.getHealth() == 200.0f && player.getAbsorptionAmount() == 0.0f, "после большой аптечки " + ClassHealth.total(player));
+
+			// Здоровому аптечка не нужна, а горящему нужна: она тушит огонь.
+			level.getBlockState(helper.absolutePos(large)).tick(level, helper.absolutePos(large), level.getRandom());
+			standIn(helper, player, large);
+			check(available(helper, large), "здоровый игрок подобрал аптечку");
+			player.setRemainingFireTicks(100);
+			standIn(helper, player, large);
+			check(!available(helper, large) && !player.isOnFire(), "аптечка не потушила горящего игрока");
+
+			// Средние патроны: 50% запаса ракетницы (20) = 10; обойму не трогают.
+			run(server.createCommandSourceStack(), "ammo set 5 " + name);
+			standIn(helper, player, ammo);
+			checkAmmo(player, 4, 15, "после средних патронов");
+			level.getBlockState(helper.absolutePos(ammo)).tick(level, helper.absolutePos(ammo), level.getRandom());
+			standIn(helper, player, ammo);
+			checkAmmo(player, 4, 20, "запас выше наибольшего");
+			level.getBlockState(helper.absolutePos(ammo)).tick(level, helper.absolutePos(ammo), level.getRandom());
+			standIn(helper, player, ammo);
+			check(available(helper, ammo), "игрок с полным запасом подобрал патроны");
+		} finally {
+			for (BlockPos pos : new BlockPos[] {small, large, ammo}) {
+				helper.setBlock(pos, Blocks.AIR);
+			}
+			run(server.createCommandSourceStack(), "class vanilla " + name);
+			server.getPlayerList().remove(player);
+		}
+
+		helper.succeed();
+	}
+
+	/** Ставит игрока в блок и даёт ему подобрать то, что там лежит. */
+	private static void standIn(GameTestHelper helper, ServerPlayer player, BlockPos pos) {
+		player.setPos(Vec3.atBottomCenterOf(helper.absolutePos(pos)));
+		Tf2Blocks.touchPickups(helper.getLevel().getServer());
+	}
+
+	private static boolean available(GameTestHelper helper, BlockPos pos) {
+		return helper.getBlockState(pos).getValue(PickupBlock.AVAILABLE);
 	}
 
 	private static void checkOnSpawn(GameTestHelper helper, ServerPlayer player, BlockPos spawn, String where) {

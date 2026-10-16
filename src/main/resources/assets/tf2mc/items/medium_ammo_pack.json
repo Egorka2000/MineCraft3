@@ -1,0 +1,6 @@
+{
+	"model": {
+		"type": "minecraft:model",
+		"model": "tf2mc:block/medium_ammo_pack"
+	}
+}
