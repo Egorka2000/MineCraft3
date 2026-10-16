@@ -625,6 +625,16 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			context.getInput().releaseKey(options -> options.keyUp);
 			context.waitTicks(10);
 
+			// Взгляд вверх и вниз: корпус и ракетница наклоняются за ним.
+			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_FRONT));
+			context.runOnClient(client -> client.player.setXRot(-60.0F));
+			context.waitTicks(5);
+			context.takeScreenshot("tf2mc-real-model-look-up");
+			context.runOnClient(client -> client.player.setXRot(60.0F));
+			context.waitTicks(5);
+			context.takeScreenshot("tf2mc-real-model-look-down");
+			context.runOnClient(client -> client.player.setXRot(0.0F));
+
 			// Игрок BLU — синий скин той же модели.
 			server.runCommand("tf2 team blu @p");
 			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_FRONT));

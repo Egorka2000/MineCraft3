@@ -148,7 +148,12 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 		float[] values = new float[set.parameters().size()];
 		setParameter(set, values, "move_x", state.moveForward);
 		setParameter(set, values, "move_y", state.moveLeft);
-		return set.sample(sequence.get(), state.cycle, values);
+		// Наклон корпуса за взглядом. Измерено по кости weapon_bone: при body_yaw > 0 ствол уходит
+		// вправо, при body_pitch > 0 — вверх. В Minecraft поворот головы относительно тела вправо
+		// положительный, как body_yaw, а наклон вниз положительный — обратно body_pitch.
+		setParameter(set, values, "body_yaw", state.yRot);
+		setParameter(set, values, "body_pitch", -state.xRot);
+		return set.sampleWithLayers(sequence.get(), state.cycle, values);
 	}
 
 	private static void setParameter(AnimationSet set, float[] values, String name, float value) {

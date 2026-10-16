@@ -67,6 +67,49 @@ public final class Pose {
 	}
 
 	/**
+	 * Накладывает на позу поправку из дельта-анимации с весом {@code weight}: смещения
+	 * прибавляются, повороты домножаются на долю поправки. У поправок «после» ({@code post})
+	 * поворот поправки применяется после основного: основной · поправка; иначе поправка · основной.
+	 */
+	public static Pose addDelta(Pose base, Pose delta, float weight, boolean post) {
+		Pose out = new Pose(base.bones());
+		float[] identity = {0, 0, 0, 1};
+		float[] scaled = new float[4];
+
+		for (int i = 0; i < base.positions.length; i++) {
+			out.positions[i] = base.positions[i] + delta.positions[i] * weight;
+		}
+
+		for (int bone = 0; bone < base.bones(); bone++) {
+			float[] d = {delta.rotations[bone * 4], delta.rotations[bone * 4 + 1], delta.rotations[bone * 4 + 2], delta.rotations[bone * 4 + 3]};
+			slerp(identity, d, 0, weight, scaled);
+			float[] b = {base.rotations[bone * 4], base.rotations[bone * 4 + 1], base.rotations[bone * 4 + 2], base.rotations[bone * 4 + 3]};
+			float[] result = post ? multiply(b, scaled) : multiply(scaled, b);
+			normalize(result);
+			System.arraycopy(result, 0, out.rotations, bone * 4, 4);
+		}
+
+		return out;
+	}
+
+	/** Произведение кватернионов {@code a · b}: сначала поворот b, затем a. */
+	static float[] multiply(float[] a, float[] b) {
+		return new float[] {
+			a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
+			a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+			a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
+			a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]};
+	}
+
+	private static void normalize(float[] q) {
+		float length = (float) Math.sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
+
+		for (int i = 0; i < 4; i++) {
+			q[i] /= length;
+		}
+	}
+
+	/**
 	 * Матрицы отрисовки: для каждой кости 12 чисел, матрица 3×4 по строкам, которая переводит
 	 * вершину из пространства привязки (как она записана в VVD) в пространство модели в этой позе.
 	 */

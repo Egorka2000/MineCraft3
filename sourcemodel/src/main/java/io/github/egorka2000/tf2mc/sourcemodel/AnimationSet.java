@@ -23,6 +23,42 @@ public final class AnimationSet {
 
 	/** Последовательность повторяется по кругу. */
 	public static final int SEQUENCE_LOOPING = 0x0001;
+	/** Последовательность — поправка к позе (дельта). */
+	public static final int SEQUENCE_DELTA = 0x0004;
+	/** Поправка применяется после основного поворота. */
+	public static final int SEQUENCE_POST = 0x0400;
+
+	private static final int AUTO_LAYER_SIZE = 24;
+	/** Слой, который игра накладывает отдельно, по своему времени: здесь не поддерживается. */
+	private static final int LAYER_LOCAL = 0x1000;
+
+	/**
+	 * Слой, который последовательность накладывает на себя сама, например матрица прицеливания.
+	 * Если начало и конец совпадают, слой действует всегда в полную силу; иначе — на отрезке
+	 * проигрывания от начала до конца, нарастая до пика и спадая после хвоста.
+	 */
+	public record AutoLayer(int sequence, int flags, float start, float peak, float tail, float end) {
+		/** Сила слоя при доле проигрывания основной последовательности. */
+		public float weight(float cycle) {
+			if (start == end) {
+				return 1.0F;
+			}
+
+			if (cycle < start || cycle >= end) {
+				return 0.0F;
+			}
+
+			if (cycle < peak && peak > start) {
+				return (cycle - start) / (peak - start);
+			}
+
+			if (cycle > tail && end > tail) {
+				return (end - cycle) / (end - tail);
+			}
+
+			return 1.0F;
+		}
+	}
 
 	// Флаги данных кости в анимации.
 	private static final int RAW_POSITION = 0x01;
@@ -44,7 +80,16 @@ public final class AnimationSet {
 	 * @param blends     номера анимаций в сетке построчно, {@code groupSize[0] × groupSize[1]}
 	 */
 	public record Sequence(String name, String activity, int flags, int[] groupSize, int[] parameters,
-			float[] parameterStart, float[] parameterEnd, int[] blends) {
+			float[] parameterStart, float[] parameterEnd, int[] blends, List<AutoLayer> layers) {
+		/** Последовательность — поправка к другой позе, а не поза целиком. */
+		public boolean delta() {
+			return (flags & SEQUENCE_DELTA) != 0;
+		}
+
+		/** Поправка применяется после основного поворота кости. */
+		public boolean post() {
+			return (flags & SEQUENCE_POST) != 0;
+		}
 		public boolean looping() {
 			return (flags & SEQUENCE_LOOPING) != 0;
 		}
@@ -130,10 +175,29 @@ public final class AnimationSet {
 			int activity = in.int32(at + 8);
 			list.add(new Sequence(in.string(at + in.int32(at + 4)), activity == 0 ? "" : in.string(at + activity), in.int32(at + 12), groupSize,
 					new int[] {in.int32(at + 76), in.int32(at + 80)}, new float[] {in.float32(at + 84), in.float32(at + 88)},
-					new float[] {in.float32(at + 92), in.float32(at + 96)}, blends));
+					new float[] {in.float32(at + 92), in.float32(at + 96)}, blends, readLayers(in, at)));
 		}
 
 		return List.copyOf(list);
+	}
+
+	private static List<AutoLayer> readLayers(Bytes in, int sequence) {
+		int count = in.int32(sequence + 148);
+		int offset = sequence + in.int32(sequence + 152);
+
+		if (count <= 0) {
+			return List.of();
+		}
+
+		in.checkArray(offset, count, AUTO_LAYER_SIZE, "слои последовательности");
+		List<AutoLayer> layers = new ArrayList<>(count);
+
+		for (int i = 0; i < count; i++) {
+			int at = offset + i * AUTO_LAYER_SIZE;
+			layers.add(new AutoLayer(in.int16(at), in.int32(at + 4), in.float32(at + 8), in.float32(at + 12), in.float32(at + 16), in.float32(at + 20)));
+		}
+
+		return List.copyOf(layers);
 	}
 
 	private static List<Animation> readAnimations(Bytes in) {
@@ -210,27 +274,53 @@ public final class AnimationSet {
 			grid[axis] = position - cell[axis];
 		}
 
-		Pose bottom = Pose.blend(sample(animations.get(sequence.animation(cell[0], cell[1])), cycle),
-				sample(animations.get(sequence.animation(cell[0] + 1, cell[1])), cycle), grid[0]);
+		Pose bottom = Pose.blend(sample(animations.get(sequence.animation(cell[0], cell[1])), cycle, sequence.delta()),
+				sample(animations.get(sequence.animation(cell[0] + 1, cell[1])), cycle, sequence.delta()), grid[0]);
 
 		if (sequence.groupSize()[1] <= 1) {
 			return bottom;
 		}
 
-		Pose top = Pose.blend(sample(animations.get(sequence.animation(cell[0], cell[1] + 1)), cycle),
-				sample(animations.get(sequence.animation(cell[0] + 1, cell[1] + 1)), cycle), grid[0]);
+		Pose top = Pose.blend(sample(animations.get(sequence.animation(cell[0], cell[1] + 1)), cycle, sequence.delta()),
+				sample(animations.get(sequence.animation(cell[0] + 1, cell[1] + 1)), cycle, sequence.delta()), grid[0]);
 		return Pose.blend(bottom, top, grid[1]);
+	}
+
+	/**
+	 * Поза последовательности вместе с её слоями: на основную позу накладываются слои
+	 * последовательности (у игроков TF2 — матрица прицеливания по {@code body_yaw} и
+	 * {@code body_pitch}) с той же долей проигрывания и теми же параметрами позы.
+	 */
+	public Pose sampleWithLayers(Sequence sequence, float cycle, float[] poseValues) {
+		Pose pose = sample(sequence, cycle, poseValues);
+
+		for (AutoLayer layer : sequence.layers()) {
+			float weight = layer.weight(cycle);
+
+			if ((layer.flags() & LAYER_LOCAL) != 0 || weight <= 0.0F || layer.sequence() < 0 || layer.sequence() >= sequences.size()) {
+				continue;
+			}
+
+			Sequence layered = sequences.get(layer.sequence());
+			Pose layerPose = sample(layered, cycle, poseValues);
+			pose = layered.delta() ? Pose.addDelta(pose, layerPose, weight, layered.post()) : Pose.blend(pose, layerPose, weight);
+		}
+
+		return pose;
 	}
 
 	/** Поза одной анимации; между кадрами — интерполяция. */
 	public Pose sample(Animation animation, float cycle) {
+		return sample(animation, cycle, false);
+	}
+
+	/** @param delta анимация — поправка, даже если в её описании это не отмечено */
+	private Pose sample(Animation animation, float cycle, boolean delta) {
 		float frame = Math.clamp(cycle, 0.0F, 1.0F) * (animation.frames() - 1);
 		int whole = (int) frame;
 		float fraction = frame - whole;
 		Pose pose = Pose.rest(bones);
-		boolean delta = (animation.flags() & 0x0004) != 0;
-
-		if (delta) {
+		if (delta || (animation.flags() & SEQUENCE_DELTA) != 0) {
 			for (int i = 0; i < bones.size(); i++) {
 				pose.set(i, new float[3], new float[] {0.0F, 0.0F, 0.0F, 1.0F});
 			}
