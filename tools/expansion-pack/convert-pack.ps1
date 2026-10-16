@@ -46,7 +46,7 @@ $validName = '^[a-z0-9/._-]+$'
 # --- Таблицы звуков TF2 -> sounds.json --------------------------------------------------------
 
 # Разбирает файл формата KeyValues: "ключ" "значение" и "ключ" { ... }.
-function Read-KeyValues([string]$path) {
+function Read-KeyValue([string]$path) {
     $text = [System.IO.File]::ReadAllText($path)
     $tokens = [regex]::Matches($text, '//[^\n]*|"([^"]*)"|[{}]|[^\s{}"]+')
     $script:kvTokens = New-Object System.Collections.Generic.List[object]
@@ -93,10 +93,10 @@ function Read-Block([bool]$inner) {
 }
 
 # Все значения "wave" в записи, в том числе внутри "rndwave".
-function Get-Waves($pairs) {
+function Get-Wave($pairs) {
     $result = @()
     foreach ($p in $pairs) {
-        if ($p[1] -is [System.Collections.ArrayList]) { $result += Get-Waves $p[1] }
+        if ($p[1] -is [System.Collections.ArrayList]) { $result += Get-Wave $p[1] }
         elseif ($p[0] -ieq "wave") { $result += $p[1] }
     }
     return $result
@@ -134,12 +134,12 @@ $skippedSilent = 0
 # game_sounds_vo_phonemes.txt — не звуки, а движения губ для реплик; он лежит в паке как есть.
 $scripts = @(Get-ChildItem (Join-Path $PackDir "scripts") -Filter "game_sounds*.txt" | Where-Object { $_.Name -ne "game_sounds_vo_phonemes.txt" } | Sort-Object Name)
 foreach ($scriptFile in $scripts) {
-    foreach ($entry in (Read-KeyValues $scriptFile.FullName)) {
+    foreach ($entry in (Read-KeyValue $scriptFile.FullName)) {
         if (-not ($entry[1] -is [System.Collections.ArrayList])) { continue }
 
-        $event = $entry[0].ToLowerInvariant()
-        if ($sounds.Contains($event)) { continue }
-        if ($event -notmatch $validName) { $skippedEvents++; continue }
+        $eventName = $entry[0].ToLowerInvariant()
+        if ($sounds.Contains($eventName)) { continue }
+        if ($eventName -notmatch $validName) { $skippedEvents++; continue }
 
         $volume = [Math]::Round([Math]::Min(1.0, (Convert-Number (Get-Value $entry[1] "volume") $volumeNames 1.0)), 3)
         $pitch = [Math]::Round([Math]::Min(2.0, [Math]::Max(0.5, (Convert-Number (Get-Value $entry[1] "pitch") $pitchNames 100.0) / 100.0)), 3)
@@ -149,7 +149,7 @@ foreach ($scriptFile in $scripts) {
         if ($volume -le 0) { $skippedSilent++; continue }
 
         $entries = @()
-        foreach ($wave in (Get-Waves $entry[1])) {
+        foreach ($wave in (Get-Wave $entry[1])) {
             # Перед путём TF2 ставит служебные знаки: ")weapons/x.wav", "^vo/x.mp3".
             $file = ($wave -replace '^[^A-Za-z0-9_]+', '').Replace('\', '/').ToLowerInvariant()
             if (-not (Test-Path -LiteralPath (Join-Path $soundRoot ($file -replace '/', '\')))) { continue }
@@ -165,7 +165,7 @@ foreach ($scriptFile in $scripts) {
 
         if ($entries.Count -gt 0) {
             # replace: звуки пака встают вместо заглушек мода, а не добавляются к ним.
-            $sounds[$event] = [ordered]@{ replace = $true; subtitle = "subtitles.tf2mc.$event"; sounds = $entries }
+            $sounds[$eventName] = [ordered]@{ replace = $true; subtitle = "subtitles.tf2mc.$eventName"; sounds = $entries }
         }
     }
 }

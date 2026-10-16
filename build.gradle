@@ -2,6 +2,7 @@ plugins {
 	id 'net.fabricmc.fabric-loom' version "${loom_version}"
 	id 'maven-publish'
 	id 'checkstyle'
+	id 'jacoco'
 }
 
 repositories {
@@ -104,6 +105,18 @@ processResources {
 
 test {
 	useJUnitPlatform()
+	// Отчёт о покрытии: build/reports/jacoco/test/html. Порога нет, отчёт для просмотра.
+	finalizedBy tasks.named("jacocoTestReport")
+}
+
+jacoco {
+	toolVersion = project.jacoco_version
+}
+
+tasks.named("jacocoTestReport") {
+	reports {
+		xml.required = true
+	}
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -175,8 +188,78 @@ def verifyJarContents = tasks.register("verifyJarContents") {
 	}
 }
 
+// Серверные игровые тесты на готовом jar в настоящем (не отладочном) сервере Fabric.
+// Обычный runGameTest идёт в среде разработки и не заметит, например, класса, который
+// есть там, но не попал в jar. Тесты берутся из jar тестового мода (src/gametest).
+configurations {
+	productionMods {
+		canBeConsumed = false
+		transitive = false
+	}
+	productionClientMods {
+		canBeConsumed = false
+		transitive = false
+	}
+}
+
+dependencies {
+	productionMods "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	// Модуля игровых тестов в обычном Fabric API нет.
+	productionMods fabricApi.module("fabric-gametest-api-v1", project.fabric_api_version)
+	productionClientMods fabricApi.module("fabric-client-gametest-api-v1", project.fabric_api_version)
+}
+
+def gametestJar = tasks.register("gametestJar", Jar) {
+	archiveBaseName = "tf2mc-test"
+	destinationDirectory = layout.buildDirectory.dir("gametest-libs")
+	from sourceSets.gametest.output
+}
+
+def productionGameTest = tasks.register("productionGameTest", net.fabricmc.loom.task.prod.ServerProductionRunTask) {
+	description = "Серверные игровые тесты на готовом jar мода в настоящем сервере Fabric."
+	mods.from(configurations.productionMods)
+	mods.from(tasks.named("jar"))
+	mods.from(gametestJar)
+	// С этим свойством Fabric API прогоняет игровые тесты и выключает сервер.
+	jvmArgs.add("-Dfabric-api.gametest=true")
+
+	def dir = layout.buildDirectory.dir("run/productionGameTest")
+	runDir = dir
+	doFirst {
+		def folder = dir.get().asFile
+		folder.deleteDir()
+		folder.mkdirs()
+		// Значение true означает согласие с EULA Minecraft (принято владельцем проекта).
+		new File(folder, "eula.txt").text = "eula=true\n"
+	}
+}
+
+// Клиентские игровые тесты на готовом jar в настоящем клиенте Fabric. Нужно окно игры,
+// поэтому в build не входят; в CI идут отдельной задачей, см. .github/workflows/build.yml.
+tasks.register("productionClientGameTest", net.fabricmc.loom.task.prod.ClientProductionRunTask) {
+	description = "Клиентские игровые тесты на готовом jar мода в настоящем клиенте Fabric."
+	mods.from(configurations.productionMods)
+	mods.from(configurations.productionClientMods)
+	mods.from(tasks.named("jar"))
+	mods.from(gametestJar)
+	// С этим свойством Fabric API прогоняет клиентские игровые тесты и закрывает игру.
+	jvmArgs.add("-Dfabric.client.gametest=true")
+
+	def dir = layout.buildDirectory.dir("run/productionClientGameTest")
+	runDir = dir
+	doFirst {
+		def folder = dir.get().asFile
+		folder.deleteDir()
+		folder.mkdirs()
+		// Тест поднимает и выделенный сервер в той же папке.
+		// Значение true означает согласие с EULA Minecraft (принято владельцем проекта).
+		new File(folder, "eula.txt").text = "eula=true\n"
+	}
+}
+
 tasks.named("check") {
 	dependsOn verifyJarContents
+	dependsOn productionGameTest
 }
 
 // configure the maven publication
