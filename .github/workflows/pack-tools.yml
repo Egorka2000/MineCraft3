@@ -1,0 +1,35 @@
+# Скрипты расширительного пака (tools/expansion-pack): проверка стиля PowerShell и тест
+# конвертера на самодельном образце. Скрипты рассчитаны на Windows, поэтому и задача на Windows.
+
+name: pack-tools
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: pack-tools-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pack-tools:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    defaults:
+      run:
+        # Скрипты пишутся под Windows PowerShell 5.1: он есть у всех игроков на Windows.
+        shell: powershell
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: lint scripts
+        run: |
+          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force -SkipPublisherCheck
+          # Write-Host — это вывод для игрока, запускающего скрипт двойным щелчком, а не ошибка.
+          $issues = Invoke-ScriptAnalyzer -Path tools/expansion-pack -Recurse -Severity Warning,Error -ExcludeRule PSAvoidUsingWriteHost
+          $issues | Format-Table -AutoSize RuleName, Severity, ScriptName, Line, Message | Out-String -Width 300 | Write-Host
+          if ($issues) { throw "PSScriptAnalyzer: замечаний $(@($issues).Count)" }
+      - name: test converter
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/expansion-pack/tests/convert-pack.test.ps1
