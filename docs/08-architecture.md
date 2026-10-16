@@ -63,7 +63,8 @@ src/main  io.github.egorka2000.tf2mc
     weapon/            оружие, боезапас, перезарядка
     entity/            ракета и другие снаряды
     net/               пакеты
-    block/             блоки для игры: Tf2Blocks (регистрация, вкладка творческого инвентаря), TeamSpawnBlock
+    block/             блоки для игры: Tf2Blocks (регистрация, вкладка творческого инвентаря, подбор),
+                       TeamSpawnBlock, PickupBlock (аптечки и патроны)
     command/           /tf2 ...
 
 src/client  io.github.egorka2000.tf2mc.client

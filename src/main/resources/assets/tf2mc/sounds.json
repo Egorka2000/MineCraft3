@@ -25,5 +25,32 @@
 				"type": "event"
 			}
 		]
+	},
+	"healthkit.touch": {
+		"subtitle": "subtitles.tf2mc.healthkit.touch",
+		"sounds": [
+			{
+				"name": "minecraft:entity.generic.drink",
+				"type": "event"
+			}
+		]
+	},
+	"ammopack.touch": {
+		"subtitle": "subtitles.tf2mc.ammopack.touch",
+		"sounds": [
+			{
+				"name": "minecraft:item.armor.equip_iron",
+				"type": "event"
+			}
+		]
+	},
+	"item.materialize": {
+		"subtitle": "subtitles.tf2mc.item.materialize",
+		"sounds": [
+			{
+				"name": "minecraft:entity.item.pickup",
+				"type": "event"
+			}
+		]
 	}
 }

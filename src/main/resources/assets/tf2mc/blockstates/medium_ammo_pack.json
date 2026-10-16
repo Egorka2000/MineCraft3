@@ -1,0 +1,10 @@
+{
+	"variants": {
+		"enabled=true": {
+			"model": "tf2mc:block/medium_ammo_pack"
+		},
+		"enabled=false": {
+			"model": "tf2mc:block/pickup_base"
+		}
+	}
+}
