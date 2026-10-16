@@ -11,7 +11,7 @@
 | Minecraft | 26.3 |
 | Fabric Loader | 0.19.5 |
 | Fabric API | 0.162.0+26.3 |
-| Loom | 1.18-SNAPSHOT, плагин `net.fabricmc.fabric-loom` |
+| Loom | 1.18.4, плагин `net.fabricmc.fabric-loom`; версия закреплена, чтобы сборка не менялась сама |
 | Gradle | 9.7.1 (через wrapper, отдельно не ставится) |
 | Java | 25 |
 | Наборы исходников | раздельные: `src/main` (общий код) и `src/client` (только клиент) |
