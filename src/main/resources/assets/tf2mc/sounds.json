@@ -44,6 +44,15 @@
 			}
 		]
 	},
+	"regenerate.touch": {
+		"subtitle": "subtitles.tf2mc.regenerate.touch",
+		"sounds": [
+			{
+				"name": "minecraft:block.chest.open",
+				"type": "event"
+			}
+		]
+	},
 	"item.materialize": {
 		"subtitle": "subtitles.tf2mc.item.materialize",
 		"sounds": [

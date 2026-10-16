@@ -5,6 +5,7 @@
 	"mixins": [
 		"FoodDataMixin",
 		"LivingEntityMixin",
+		"PlayerListMixin",
 		"PlayerMixin",
 		"ServerPlayerMixin"
 	],

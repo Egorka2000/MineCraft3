@@ -37,6 +37,9 @@ public final class Tf2Sounds {
 	/** На подставке появилась новая аптечка или патроны. */
 	public static final SoundEvent ITEM_MATERIALIZE = register("item.materialize");
 
+	/** Сработал шкаф пополнения. */
+	public static final SoundEvent REGENERATE_TOUCH = register("regenerate.touch");
+
 	private Tf2Sounds() {
 	}
 

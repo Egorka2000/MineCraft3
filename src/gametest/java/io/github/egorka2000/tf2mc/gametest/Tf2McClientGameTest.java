@@ -85,7 +85,8 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		assertDrawnByMod(context, where + ": ванильный игрок", false);
 
 		resetPlayer(context, server, connection);
-		server.runCommand("execute as @a run tf2 class soldier");
+		// Оператор с ником: класс меняется сразу, без шкафа пополнения.
+		server.runCommand("tf2 class soldier @p");
 		connection.waitForClientboundPackets();
 		context.waitTicks(2);
 
@@ -180,7 +181,7 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		connection.waitForClientboundPackets();
 
 		resetPlayer(context, server, connection);
-		server.runCommand("execute as @a run tf2 class vanilla");
+		server.runCommand("tf2 class vanilla @p");
 		connection.waitForClientboundPackets();
 		context.waitTicks(2);
 		assertNear(where + ": максимум здоровья после снятия класса", 20.0, clientMaxHealth(context), 0.001);
@@ -319,7 +320,7 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 	 * заглушка. Опечатка в sounds.json дала бы тишину без единой ошибки.
 	 */
 	private static void assertSoundsHavePlaceholders(ClientGameTestContext context) {
-		for (String sound : new String[] {"weapon_rpg.single", "weapon_rpg.reload", "baseexplosioneffect.sound", "healthkit.touch", "ammopack.touch", "item.materialize"}) {
+		for (String sound : new String[] {"weapon_rpg.single", "weapon_rpg.reload", "baseexplosioneffect.sound", "healthkit.touch", "ammopack.touch", "item.materialize", "regenerate.touch"}) {
 			String file = soundBehind(context, sound);
 
 			if (file == null || file.equals("minecraft:empty") || file.equals("minecraft:intentionally_empty")) {

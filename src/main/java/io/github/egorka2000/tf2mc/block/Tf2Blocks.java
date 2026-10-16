@@ -50,6 +50,13 @@ public final class Tf2Blocks {
 	public static final Block MEDIUM_AMMO_PACK = pickup("medium_ammo_pack", PickupBlock.Kind.AMMO, 0.5, 6);
 	public static final Block LARGE_AMMO_PACK = pickup("large_ammo_pack", PickupBlock.Kind.AMMO, 1.0, 9);
 
+	/** Шкафы пополнения команд. */
+	public static final Block RED_RESUPPLY = register("red_resupply", properties -> new ResupplyBlock(TfTeam.RED, properties), MapColor.COLOR_RED);
+	public static final Block BLU_RESUPPLY = register("blu_resupply", properties -> new ResupplyBlock(TfTeam.BLU, properties), MapColor.COLOR_BLUE);
+
+	/** Шкаф срабатывает, если игрок подошёл к нему не дальше чем на столько блоков. */
+	public static final double RESUPPLY_REACH = 1.0;
+
 	/** Вкладка творческого инвентаря со всеми блоками мода. */
 	public static final CreativeModeTab TAB = Registry.register(
 			BuiltInRegistries.CREATIVE_MODE_TAB,
@@ -60,6 +67,8 @@ public final class Tf2Blocks {
 					.displayItems((parameters, output) -> {
 						output.accept(RED_SPAWN);
 						output.accept(BLU_SPAWN);
+						output.accept(RED_RESUPPLY);
+						output.accept(BLU_RESUPPLY);
 						output.accept(SMALL_HEALTH_KIT);
 						output.accept(MEDIUM_HEALTH_KIT);
 						output.accept(LARGE_HEALTH_KIT);
@@ -72,29 +81,42 @@ public final class Tf2Blocks {
 	private Tf2Blocks() {
 	}
 
-	/** Вызывается при запуске мода: регистрирует блоки и подбор аптечек и патронов. */
+	/** Вызывается при запуске мода: регистрирует блоки, подбор аптечек и патронов, шкафы пополнения. */
 	public static void register() {
-		ServerTickEvents.END_SERVER_TICK.register(Tf2Blocks::touchPickups);
+		ServerTickEvents.END_SERVER_TICK.register(Tf2Blocks::touchBlocks);
 	}
 
-	/** Раз в тик: игроки подбирают аптечки и патроны, в блоки которых вошли. Открыт для тестов. */
-	public static void touchPickups(MinecraftServer server) {
+	/**
+	 * Раз в тик: игроки подбирают аптечки и патроны, в блоки которых вошли, и пополняются у шкафов,
+	 * к которым подошли вплотную — не дальше блока. Открыт для тестов.
+	 */
+	public static void touchBlocks(MinecraftServer server) {
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			if (player.isSpectator() || !player.isAlive()) {
 				continue;
 			}
 
-			AABB box = player.getBoundingBox();
 			ServerLevel level = player.level();
+			AABB box = player.getBoundingBox();
 
-			for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(box.minX, box.minY, box.minZ), BlockPos.containing(box.maxX, box.maxY, box.maxZ))) {
+			for (BlockPos pos : blocksIn(box)) {
 				BlockState state = level.getBlockState(pos);
 
 				if (state.getBlock() instanceof PickupBlock pickup) {
 					pickup.tryPickUp(state, level, pos.immutable(), player);
 				}
 			}
+
+			for (BlockPos pos : blocksIn(box.inflate(RESUPPLY_REACH))) {
+				if (level.getBlockState(pos).getBlock() instanceof ResupplyBlock resupply) {
+					resupply.resupply(level, pos.immutable(), player);
+				}
+			}
 		}
+	}
+
+	private static Iterable<BlockPos> blocksIn(AABB box) {
+		return BlockPos.betweenClosed(BlockPos.containing(box.minX, box.minY, box.minZ), BlockPos.containing(box.maxX, box.maxY, box.maxZ));
 	}
 
 	private static Block pickup(String name, PickupBlock.Kind kind, double fraction, int height) {

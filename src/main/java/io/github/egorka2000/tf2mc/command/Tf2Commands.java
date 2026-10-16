@@ -14,6 +14,7 @@ import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.config.ConfigManager;
 import io.github.egorka2000.tf2mc.config.Tf2Config;
 import io.github.egorka2000.tf2mc.clazz.ClassHealth;
+import io.github.egorka2000.tf2mc.clazz.PendingChoice;
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
 import io.github.egorka2000.tf2mc.clazz.TfClass;
 import io.github.egorka2000.tf2mc.movement.SpeedometerToggle;
@@ -123,8 +124,10 @@ public final class Tf2Commands {
 	}
 
 	private static int showClass(CommandSourceStack source) throws CommandSyntaxException {
-		String name = PlayerClasses.get(source.getPlayerOrException()).map(TfClass::id).orElse(TfClass.VANILLA_ID);
-		source.sendSuccess(() -> Component.literal("tf2-mc: ваш класс — " + name), false);
+		ServerPlayer player = source.getPlayerOrException();
+		String name = PlayerClasses.get(player).map(TfClass::id).orElse(TfClass.VANILLA_ID);
+		String pending = PendingChoice.pendingClass(player).map(id -> "; выбран " + id + ", будет у шкафа пополнения или после возрождения").orElse("");
+		source.sendSuccess(() -> Component.literal("tf2-mc: ваш класс — " + name + pending), false);
 		return 1;
 	}
 
@@ -132,7 +135,18 @@ public final class Tf2Commands {
 	 * @param tfClass новый класс; {@code null} снимает класс
 	 */
 	private static int setClass(CommandSourceStack source, ServerPlayer target, TfClass tfClass) {
-		PlayerClasses.set(target, tfClass);
+		String name = tfClass == null ? TfClass.VANILLA_ID : tfClass.id();
+
+		// Свой выбор запоминается до шкафа пополнения или возрождения; оператор с ником меняет сразу.
+		if (source.getEntity() == target && !PendingChoice.chooseClass(target, tfClass)) {
+			source.sendSuccess(() -> Component.literal("tf2-mc: класс " + name + " будет выбран у шкафа пополнения своей команды или после возрождения"), false);
+			return 1;
+		}
+
+		if (source.getEntity() != target) {
+			target.removeAttached(PendingChoice.CLASS);
+			PlayerClasses.set(target, tfClass);
+		}
 
 		String whom = describeTarget(source, target);
 		String what = tfClass == null ? "tf2-mc: класс снят" : "tf2-mc: выдан класс " + tfClass.id();
@@ -189,7 +203,8 @@ public final class Tf2Commands {
 		ServerPlayer self = source.getPlayer();
 
 		if (self != null) {
-			lines.add("tf2-mc: ваша команда — " + describeTeam(self));
+			String pending = PendingChoice.pendingTeam(self).map(id -> "; выбрана " + id + ", будет у шкафа пополнения или после возрождения").orElse("");
+			lines.add("tf2-mc: ваша команда — " + describeTeam(self) + pending);
 		}
 
 		for (TfTeam team : TfTeam.values()) {
@@ -217,6 +232,22 @@ public final class Tf2Commands {
 	 * @param team команда; {@code null} — та, где меньше игроков
 	 */
 	private static int joinTeam(CommandSourceStack source, ServerPlayer target, TfTeam team) {
+		// Свой выбор запоминается до шкафа пополнения или возрождения; первый выбор команды
+		// и оператор с ником — сразу.
+		if (source.getEntity() == target) {
+			String name = team == null ? TfTeam.RANDOM_ID : team.id();
+
+			if (!PendingChoice.chooseTeam(target, team)) {
+				source.sendSuccess(() -> Component.literal("tf2-mc: команда " + name + " будет выбрана у шкафа пополнения своей команды или после возрождения"), false);
+				return 1;
+			}
+
+			String joined = Teams.get(target).map(TfTeam::id).orElse(name);
+			source.sendSuccess(() -> Component.literal("tf2-mc: команда " + joined), true);
+			return 1;
+		}
+
+		target.removeAttached(PendingChoice.TEAM);
 		TfTeam joined = team;
 
 		if (joined == null) {
@@ -232,6 +263,8 @@ public final class Tf2Commands {
 	}
 
 	private static int spectate(CommandSourceStack source, ServerPlayer target) {
+		// Наблюдать можно сразу; запомненная команда при этом забывается.
+		target.removeAttached(PendingChoice.TEAM);
 		Teams.spectate(target);
 
 		String whom = describeTarget(source, target);

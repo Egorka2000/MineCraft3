@@ -66,8 +66,21 @@ public final class Teams {
 		return first.canHarmPlayer(second) && second.canHarmPlayer(first);
 	}
 
-	/** Зачисляет игрока в команду. Наблюдателю возвращается режим игры, который был до наблюдения. */
+	/**
+	 * Зачисляет игрока в команду и переносит на её точку возрождения. Наблюдателю возвращается
+	 * режим игры, который был до наблюдения.
+	 */
 	public static void join(ServerPlayer player, TfTeam team) {
+		join(player, team, true);
+	}
+
+	/**
+	 * Зачисляет игрока в команду.
+	 *
+	 * @param toSpawn перенести ли на точку возрождения команды; не нужно перед возрождением,
+	 *                место которого игра выберет сама
+	 */
+	public static void join(ServerPlayer player, TfTeam team, boolean toSpawn) {
 		Scoreboard scoreboard = player.level().getServer().getScoreboard();
 
 		// Игрок состоит только в одной команде таблицы счёта: из прежней игра убирает его сама.
@@ -78,15 +91,22 @@ public final class Teams {
 		}
 
 		// Как в TF2: вступивший в команду появляется на её точке возрождения, если она есть.
-		TeamSpawns.sendToSpawn(player);
+		if (toSpawn) {
+			TeamSpawns.sendToSpawn(player);
+		}
 	}
 
 	/** Зачисляет игрока в команду, где меньше игроков; при равенстве — в случайную. */
 	public static TfTeam joinRandom(ServerPlayer player) {
+		return joinRandom(player, true);
+	}
+
+	/** То же, с выбором, переносить ли на точку возрождения: см. {@link #join(ServerPlayer, TfTeam, boolean)}. */
+	public static TfTeam joinRandom(ServerPlayer player, boolean toSpawn) {
 		MinecraftServer server = player.level().getServer();
 		TfTeam team = TeamBalance.pick(countOthers(server, player, TfTeam.RED), countOthers(server, player, TfTeam.BLU), player.getRandom().nextBoolean());
 
-		join(player, team);
+		join(player, team, toSpawn);
 		return team;
 	}
 
