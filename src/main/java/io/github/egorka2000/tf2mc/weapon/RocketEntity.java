@@ -4,6 +4,7 @@ import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.movement.UnitConversion;
 import io.github.egorka2000.tf2mc.team.Teams;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
@@ -28,9 +29,6 @@ import net.minecraft.world.phys.Vec3;
 public class RocketEntity extends Projectile {
 	/** Скорость ракеты, u/s. */
 	public static final double SPEED = 1100.0;
-
-	/** Сколько тиков живёт ракета, которая ни во что не попала. */
-	private static final int MAX_LIFETIME_TICKS = 200;
 
 	/** На сколько блоков точка взрыва отодвигается от поверхности, в которую попала ракета. */
 	private static final double SURFACE_OFFSET = 0.01;
@@ -72,11 +70,6 @@ public class RocketEntity extends Projectile {
 			return;
 		}
 
-		if (tickCount > MAX_LIFETIME_TICKS) {
-			discard();
-			return;
-		}
-
 		Vec3 movement = getDeltaMovement();
 		HitResult hit = ProjectileUtil.getHitResultOnMoveVector(this, this::canHitEntity);
 
@@ -92,9 +85,33 @@ public class RocketEntity extends Projectile {
 			return;
 		}
 
-		setPos(getX() + movement.x, getY() + movement.y, getZ() + movement.z);
+		Vec3 next = position().add(movement);
+
+		if (!canFlyTo(level, next)) {
+			discard();
+			return;
+		}
+
+		setPos(next);
 		// Своей модели у ракеты пока нет: путь видно по дыму.
 		level.sendParticles(ParticleTypes.SMOKE, getX(), getY(), getZ(), 2, 0.0, 0.0, 0.0, 0.0);
+	}
+
+	/**
+	 * Может ли ракета лететь дальше. Как в TF2, срока жизни у неё нет: летит, пока во что-нибудь
+	 * не попадёт. Исчезает она, только когда попасть уже не во что:
+	 * <ul>
+	 * <li>выше предела высоты мира или ниже его дна — там нет блоков, как за скайбоксом TF2;</li>
+	 * <li>за пределами области, где сервер обновляет сущности, то есть дальше прорисовки
+	 * игроков. Ракета не подгружает мир: в незагруженной области она бы просто замерла.</li>
+	 * </ul>
+	 */
+	public static boolean canFlyTo(ServerLevel level, Vec3 position) {
+		if (position.y < level.getMinY() || position.y > level.getMaxY() + 1) {
+			return false;
+		}
+
+		return level.isPositionEntityTicking(BlockPos.containing(position));
 	}
 
 	/** Ракета пролетает сквозь стрелка и сквозь тех, кого он ранить не может: свою команду и нейтральных. */

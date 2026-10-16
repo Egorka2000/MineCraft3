@@ -482,7 +482,18 @@ public class Tf2McGameTest {
 			check(!rocket.isRemoved(), "ракета исчезла в свободном полёте");
 			checkNear("путь ракеты за три тика, блоки", 3.0 * 1100.0 / 45.0 / 20.0, rocket.position().distanceTo(start), 1e-3);
 			checkNear("ракета отклонилась от прямой", 0.0, Math.abs(rocket.getX() - start.x) + Math.abs(rocket.getY() - start.y), 1e-6);
+
+			// Срока жизни нет: как в TF2, ракета летит, пока во что-нибудь не попадёт.
+			rocket.tickCount = 100_000;
+			rocket.tick();
+			check(!rocket.isRemoved(), "ракета исчезла от старости");
 			rocket.discard();
+
+			// Исчезает, только когда попасть уже не во что: над миром, под ним и в незагруженной области.
+			check(RocketEntity.canFlyTo(level, start), "ракете нельзя лететь рядом со стрелком");
+			check(!RocketEntity.canFlyTo(level, new Vec3(start.x, level.getMaxY() + 2.0, start.z)), "ракета летит выше мира");
+			check(!RocketEntity.canFlyTo(level, new Vec3(start.x, level.getMinY() - 1.0, start.z)), "ракета летит ниже мира");
+			check(!RocketEntity.canFlyTo(level, start.add(1_000_000.0, 0.0, 0.0)), "ракета летит в незагруженную область");
 
 			// Блок в пяти блоках перед глазами: ракета взрывается о него не позже чем через пять тиков.
 			helper.setBlock(new BlockPos(1, 4, 6), Blocks.STONE);
