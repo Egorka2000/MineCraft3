@@ -81,6 +81,19 @@ public record Magazine(int clip, int reserve, int fireCooldown, int reloadTicks,
 		return new Magazine(clip + 1, reserve - 1, 0, 0, reloadedInRow + 1);
 	}
 
+	/**
+	 * Один тик, когда оружие убрано. Перезарядка идёт только в руках: убранное оружие её
+	 * прерывает, и после возвращения в руки она начинается заново, с первого патрона.
+	 * Пауза после выстрела идёт как обычно.
+	 */
+	public Magazine holsteredTick() {
+		if (fireCooldown == 0 && reloadTicks == 0 && reloadedInRow == 0) {
+			return this;
+		}
+
+		return new Magazine(clip, reserve, Math.max(0, fireCooldown - 1), 0, 0);
+	}
+
 	/** Запас изменён на заданную величину и обрезан границами от нуля до наибольшего. */
 	public Magazine addReserve(int amount, Rules rules) {
 		return withReserve(reserve + amount, rules);

@@ -560,6 +560,13 @@ public class Tf2McGameTest {
 			run(server.createCommandSourceStack(), "class soldier " + name);
 			check(player.getInventory().contains(stack -> stack.is(RocketLauncher.ITEM)), "ракетница не выдана вместе с классом");
 			checkAmmo(player, 4, 20, "после выдачи класса");
+			// Перезарядка идёт только с ракетницей в руках.
+			for (int slot = 0; slot < 9; slot++) {
+				if (player.getInventory().getItem(slot).is(RocketLauncher.ITEM)) {
+					player.getInventory().setSelectedSlot(slot);
+				}
+			}
+			check(player.getMainHandItem().is(RocketLauncher.ITEM), "ракетница не на панели быстрого доступа");
 
 			// Повторная выдача класса не даёт вторую ракетницу.
 			run(server.createCommandSourceStack(), "class soldier " + name);
@@ -587,7 +594,19 @@ public class Tf2McGameTest {
 			checkAmmo(player, 0, 20, "за тик до первой ракеты");
 			tickLauncher(server, 1);
 			checkAmmo(player, 1, 19, "после первой ракеты");
-			tickLauncher(server, 3 * 16);
+
+			// Ракетница убрана из рук: перезарядка стоит. Снова в руках — начинается заново, с 18 тиков.
+			int launcherSlot = player.getInventory().getSelectedSlot();
+			player.getInventory().setSelectedSlot((launcherSlot + 1) % 9);
+			tickLauncher(server, 100);
+			checkAmmo(player, 1, 19, "перезарядка шла с ракетницей не в руках");
+			player.getInventory().setSelectedSlot(launcherSlot);
+			tickLauncher(server, 17);
+			checkAmmo(player, 1, 19, "за тик до ракеты после возвращения в руки");
+			tickLauncher(server, 1);
+			checkAmmo(player, 2, 18, "после ракеты, заряженной после возвращения в руки");
+
+			tickLauncher(server, 2 * 16);
 			checkAmmo(player, 4, 16, "после полной перезарядки");
 
 			// Отладочная команда: запас, прибавка с обрезкой по наибольшему, полное пополнение.
