@@ -21,4 +21,7 @@ public final class ClassRenderState extends AvatarRenderState {
 	/** Движение относительно тела: вперёд и влево, доли наибольшей скорости класса, −1..1. */
 	public float moveForward;
 	public float moveLeft;
+
+	/** В основной руке ракетница: её модель рисуется в руках. */
+	public boolean holdingWeapon;
 }

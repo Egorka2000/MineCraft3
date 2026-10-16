@@ -11,6 +11,7 @@ import io.github.egorka2000.tf2mc.sourcemodel.AnimationSet;
 import io.github.egorka2000.tf2mc.sourcemodel.Pose;
 import io.github.egorka2000.tf2mc.team.Teams;
 import io.github.egorka2000.tf2mc.team.TfTeam;
+import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
 
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -27,7 +28,8 @@ import net.minecraft.util.Mth;
  * Рисует игрока с классом моделью TF2 из расширительного пака вместо модели Стива.
  *
  * <p>Всё, кроме самой модели, остаётся от ванильного отрисовщика игрока: поворот тела, имя над
- * головой, тень, покраснение от урона. Модель Стива, броня и предметы в руках не рисуются.
+ * головой, тень, покраснение от урона. Модель Стива, броня и предметы в руках Стива не рисуются;
+ * ракетница в основной руке рисуется моделью TF2 в руках персонажа.
  *
  * <p>Анимация выбирается по движению игрока, как в TF2 с основным оружием: стойка, бег (смешивается
  * по направлению движения), присед и ходьба в приседе, полёт в прыжке. Вершины пересчитываются
@@ -80,6 +82,7 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 		}
 
 		classState.sequence = sequence;
+		classState.holdingWeapon = player.getMainHandItem().is(RocketLauncher.ITEM);
 		classState.cycle = mesh.animations().flatMap(set -> set.sequence(sequence).map(seq -> cycle(set, seq, state.ageInTicks))).orElse(0.0F);
 	}
 
@@ -97,15 +100,20 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 			ClassRenderState classState = state instanceof ClassRenderState s ? s : null;
 			int family = classState != null ? classState.skinFamily : SourceModels.RED;
 			int overlay = LivingEntityRenderer.getOverlayCoords(state, 0.0F);
-			float[] vertices = mesh.skin(pose(classState));
+			SourceModels.SkinnedMesh body = mesh.body();
+			Pose pose = pose(classState);
+			float[] world = pose == null ? null : pose.worldMatrices(body.bones());
 
 			poseStack.pushPose();
 			poseStack.scale(state.scale, state.scale, state.scale);
 			setupRotations(state, poseStack, state.bodyRot, state.scale);
+			submit(collector, poseStack, body, body.skin(pose == null ? null : pose.skinMatrices(body.bones())), family, state.lightCoords, overlay);
 
-			for (SourceModels.Draw draw : mesh.forFamily(family)) {
-				RenderType type = RenderTypes.entityCutout(draw.texture());
-				collector.submitCustomGeometry(poseStack, type, (pose, buffer) -> triangles(pose, buffer, vertices, draw.triangles(), state.lightCoords, overlay));
+			// Оружие повторяет кость weapon_bone тела.
+			if (world != null && classState.holdingWeapon && mesh.weapon().isPresent()) {
+				SourceModels.SkinnedMesh weapon = mesh.weapon().get();
+				float[] skin = Pose.attachedSkinMatrices(weapon.bones(), body.bones(), world);
+				submit(collector, poseStack, weapon, weapon.skin(skin), family, state.lightCoords, overlay);
 			}
 
 			poseStack.popPose();
@@ -113,6 +121,13 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 
 		// Имя, тень и прочее; модель Стива отключена в getRenderType.
 		super.submit(state, poseStack, collector, camera);
+	}
+
+	private static void submit(SubmitNodeCollector collector, PoseStack poseStack, SourceModels.SkinnedMesh mesh, float[] vertices, int family, int light, int overlay) {
+		for (SourceModels.Draw draw : mesh.forFamily(family)) {
+			RenderType type = RenderTypes.entityCutout(draw.texture());
+			collector.submitCustomGeometry(poseStack, type, (pose, buffer) -> triangles(pose, buffer, vertices, draw.triangles(), light, overlay));
+		}
 	}
 
 	/** Поза по выбранной анимации; {@code null} — начальная поза, если анимаций нет. */
@@ -155,7 +170,7 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 	}
 
 	private static void corner(PoseStack.Pose pose, VertexConsumer buffer, float[] v, int vertex, int light, int overlay) {
-		int at = vertex * SourceModels.PlayerMesh.STRIDE;
+		int at = vertex * SourceModels.SkinnedMesh.STRIDE;
 		buffer.addVertex(pose, v[at], v[at + 1], v[at + 2])
 				.setColor(-1)
 				.setUv(v[at + 3], v[at + 4])

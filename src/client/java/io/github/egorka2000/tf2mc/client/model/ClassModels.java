@@ -62,7 +62,7 @@ public final class ClassModels {
 
 		sourceTextures.clear();
 		Optional<SourceModels.PlayerMesh> soldier = SourceModels.load(
-				resources, textureManager, SourceModels.SOLDIER, Tf2Mc.config().current().unitsPerBlock(), sourceTextures);
+				resources, textureManager, SourceModels.SOLDIER, SourceModels.ROCKET_LAUNCHER, Tf2Mc.config().current().unitsPerBlock(), sourceTextures);
 
 		if (soldier.isPresent()) {
 			renderer = new SourcePlayerRenderer(context, soldier.get());

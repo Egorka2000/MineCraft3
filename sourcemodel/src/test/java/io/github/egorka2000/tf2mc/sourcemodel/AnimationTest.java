@@ -114,6 +114,32 @@ class AnimationTest {
 	}
 
 	@Test
+	void attachedModelFollowsCarrierBoneByName() {
+		List<StudioModel.Bone> carrier = StudioModel.read(TinyModel.mdl()).bones();
+		Pose pose = Pose.rest(carrier);
+		// Носитель сдвинут: дочерняя кость на 5 по x вместо 0.
+		pose.set(1, new float[] {5, 0, 10}, new float[] {0, 0, 0, 1});
+		float[] world = pose.worldMatrices(carrier);
+		assertEquals(5.0F, world[12 + 3], EPSILON);
+		assertEquals(10.0F, world[12 + 11], EPSILON);
+
+		float[] identity = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+		float[] none = {0, 0, 0};
+		float[] still = {0, 0, 0, 1};
+		// Оружие: кость «child» (как у носителя) и своя кость на 1 по x от неё.
+		List<StudioModel.Bone> weapon = List.of(
+				new StudioModel.Bone("CHILD", -1, none, still, identity, none, none, none),
+				new StudioModel.Bone("barrel", 0, new float[] {1, 0, 0}, still, identity, none, none, none));
+		float[] skin = Pose.attachedSkinMatrices(weapon, carrier, world);
+
+		// Кость с именем носителя повторяет его (регистр не важен), своя висит на ней.
+		assertEquals(5.0F, skin[3], EPSILON);
+		assertEquals(10.0F, skin[11], EPSILON);
+		assertEquals(6.0F, skin[12 + 3], EPSILON);
+		assertEquals(10.0F, skin[12 + 11], EPSILON);
+	}
+
+	@Test
 	void posesBlendHalfway() {
 		Pose a = new Pose(1);
 		a.set(0, new float[] {0, 0, 0}, new float[] {0, 0, 0, 1});

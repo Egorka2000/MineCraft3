@@ -35,6 +35,9 @@ public final class SourceModels {
 	/** Модель Soldier: файлы MDL, VVD и VTX рядом. */
 	public static final String SOLDIER = "models/player/soldier";
 
+	/** Оружие Soldier в руках, от третьего лица. */
+	public static final String ROCKET_LAUNCHER = "models/weapons/c_models/c_rocketlauncher/c_rocketlauncher";
+
 	/** Семейства скинов у игроков TF2. */
 	public static final int RED = 0;
 	public static final int BLU = 1;
@@ -47,24 +50,22 @@ public final class SourceModels {
 	}
 
 	/**
-	 * Модель, готовая к отрисовке в любой позе: вершины в пространстве привязки (как в VVD), кости,
-	 * анимации (если в паке есть файл анимаций) и треугольники для обеих команд.
+	 * Модель на костях, готовая к отрисовке в любой позе: вершины в пространстве привязки (как в
+	 * VVD), кости и треугольники для обеих команд.
 	 */
-	public static final class PlayerMesh {
+	public static final class SkinnedMesh {
 		/** Сколько чисел на вершину в осях Minecraft: x y z, u v, нормаль x y z. */
 		public static final int STRIDE = 8;
 
 		private final VertexData vertices;
 		private final List<StudioModel.Bone> bones;
-		private final AnimationSet animations;
 		private final float scale;
 		private final List<Draw> red;
 		private final List<Draw> blu;
 
-		PlayerMesh(VertexData vertices, List<StudioModel.Bone> bones, AnimationSet animations, float scale, List<Draw> red, List<Draw> blu) {
+		SkinnedMesh(VertexData vertices, List<StudioModel.Bone> bones, float scale, List<Draw> red, List<Draw> blu) {
 			this.vertices = vertices;
 			this.bones = bones;
-			this.animations = animations;
 			this.scale = scale;
 			this.red = red;
 			this.blu = blu;
@@ -74,25 +75,24 @@ public final class SourceModels {
 			return family == BLU ? blu : red;
 		}
 
-		/** Анимации модели; пусто, если файла анимаций нет и модель стоит в начальной позе. */
-		public Optional<AnimationSet> animations() {
-			return Optional.ofNullable(animations);
+		public List<StudioModel.Bone> bones() {
+			return bones;
 		}
 
 		/**
 		 * Вершины в осях Minecraft (блоки, ось y вверх, перёд −z, как у ванильных моделей после
-		 * поворота тела) для позы.
+		 * поворота тела).
 		 *
-		 * @param pose поза из анимаций; {@code null} — начальная поза
+		 * @param skin матрицы отрисовки костей ({@link Pose#skinMatrices}); {@code null} — начальная поза
 		 */
-		public float[] skin(Pose pose) {
+		public float[] skin(float[] skin) {
 			int count = vertices.count();
 			float[] p = vertices.positions();
 			float[] n = vertices.normals();
 			float[] uv = vertices.texCoords();
 			float[] out = new float[count * STRIDE];
 
-			if (pose == null) {
+			if (skin == null) {
 				// Начальная поза моделей игроков TF2 хранится с осью y вверх, лицом к +z, левая
 				// рука к +x (проверено на Soldier: глаза впереди головы по +z, правый глаз на −x).
 				// В Minecraft после поворота тела перёд −z, лево −x: разворот на 180° вокруг y.
@@ -103,7 +103,6 @@ public final class SourceModels {
 				return out;
 			}
 
-			float[] skin = pose.skinMatrices(bones);
 			int[] boneIndices = vertices.boneIndices();
 			float[] weights = vertices.boneWeights();
 			float[] position = new float[3];
@@ -155,15 +154,37 @@ public final class SourceModels {
 	}
 
 	/**
-	 * Читает модель из ресурсов и регистрирует её текстуры.
+	 * Персонаж: тело, анимации (если в паке есть файл анимаций) и оружие в руках (если есть его
+	 * модель; оружию нужны анимации тела, чтобы знать, где руки).
+	 */
+	public record PlayerMesh(SkinnedMesh body, Optional<AnimationSet> animations, Optional<SkinnedMesh> weapon) {
+	}
+
+	/**
+	 * Читает персонажа из ресурсов и регистрирует текстуры.
 	 *
+	 * @param weapon        модель оружия в руках, например {@link #ROCKET_LAUNCHER}
 	 * @param unitsPerBlock масштаб: сколько единиц TF2 в блоке
 	 * @param textures      сюда добавляются имена зарегистрированных текстур, чтобы при следующей
 	 *                      перезагрузке их освободить
 	 * @return пусто, если модели в ресурсах нет (пак не подключён) или она не читается
 	 */
-	public static Optional<PlayerMesh> load(ResourceManager resources, TextureManager textureManager, String model, double unitsPerBlock,
-			List<Identifier> textures) {
+	public static Optional<PlayerMesh> load(ResourceManager resources, TextureManager textureManager, String model, String weapon,
+			double unitsPerBlock, List<Identifier> textures) {
+		float scale = (float) (1.0 / unitsPerBlock);
+		Optional<byte[]> mdl = read(resources, model + ".mdl");
+		Optional<SkinnedMesh> body = mesh(resources, textureManager, model, scale, textures);
+
+		if (body.isEmpty() || mdl.isEmpty()) {
+			return Optional.empty();
+		}
+
+		Optional<AnimationSet> animations = Optional.ofNullable(animations(resources, StudioModel.read(mdl.get()), model));
+		Optional<SkinnedMesh> weaponMesh = animations.isPresent() ? mesh(resources, textureManager, weapon, scale, textures) : Optional.empty();
+		return Optional.of(new PlayerMesh(body.get(), animations, weaponMesh));
+	}
+
+	private static Optional<SkinnedMesh> mesh(ResourceManager resources, TextureManager textureManager, String model, float scale, List<Identifier> textures) {
 		Optional<byte[]> mdl = read(resources, model + ".mdl");
 
 		if (mdl.isEmpty()) {
@@ -176,7 +197,7 @@ public final class SourceModels {
 			SourceModel red = SourceModel.read(mdl.get(), vvd, vtx, RED);
 			SourceModel blu = SourceModel.read(mdl.get(), vvd, vtx, BLU);
 
-			return Optional.of(new PlayerMesh(red.vertices(), red.studio().bones(), animations(resources, red.studio(), model), (float) (1.0 / unitsPerBlock),
+			return Optional.of(new SkinnedMesh(red.vertices(), red.studio().bones(), scale,
 					draws(red, resources, textureManager, textures), draws(blu, resources, textureManager, textures)));
 		} catch (ModelFormatException e) {
 			Tf2Mc.LOGGER.warn("модель {} из расширительного пака не читается: {}", model, e.getMessage());

@@ -71,10 +71,14 @@ public final class Pose {
 	 * вершину из пространства привязки (как она записана в VVD) в пространство модели в этой позе.
 	 */
 	public float[] skinMatrices(List<StudioModel.Bone> bones) {
+		return skinMatrices(bones, worldMatrices(bones));
+	}
+
+	/** Матрицы костей в пространстве модели: 12 чисел на кость, 3×4 по строкам. */
+	public float[] worldMatrices(List<StudioModel.Bone> bones) {
 		int count = bones.size();
 		float[] world = new float[count * 12];
 		float[] local = new float[12];
-		float[] skin = new float[count * 12];
 
 		for (int i = 0; i < count; i++) {
 			matrix(rotations, i * 4, positions, i * 3, local);
@@ -85,11 +89,62 @@ public final class Pose {
 			} else {
 				concat(world, parent * 12, local, 0, world, i * 12);
 			}
+		}
 
+		return world;
+	}
+
+	/**
+	 * Матрицы отрисовки модели, прикреплённой к другой, как оружие TF2 к персонажу: кость с тем же
+	 * именем, что у кости носителя, повторяет её положение; остальные висят на своих родителях
+	 * в начальной позе.
+	 *
+	 * @param carrierWorld матрицы костей носителя ({@link #worldMatrices})
+	 */
+	public static float[] attachedSkinMatrices(List<StudioModel.Bone> bones, List<StudioModel.Bone> carrierBones, float[] carrierWorld) {
+		int count = bones.size();
+		float[] world = new float[count * 12];
+		float[] local = new float[12];
+
+		for (int i = 0; i < count; i++) {
+			StudioModel.Bone bone = bones.get(i);
+			int carrier = indexOf(carrierBones, bone.name());
+
+			if (carrier >= 0) {
+				System.arraycopy(carrierWorld, carrier * 12, world, i * 12, 12);
+				continue;
+			}
+
+			matrix(bone.rotation(), 0, bone.position(), 0, local);
+
+			if (bone.parent() < 0) {
+				System.arraycopy(local, 0, world, i * 12, 12);
+			} else {
+				concat(world, bone.parent() * 12, local, 0, world, i * 12);
+			}
+		}
+
+		return skinMatrices(bones, world);
+	}
+
+	private static float[] skinMatrices(List<StudioModel.Bone> bones, float[] world) {
+		float[] skin = new float[bones.size() * 12];
+
+		for (int i = 0; i < bones.size(); i++) {
 			concat(world, i * 12, bones.get(i).poseToBone(), 0, skin, i * 12);
 		}
 
 		return skin;
+	}
+
+	private static int indexOf(List<StudioModel.Bone> bones, String name) {
+		for (int i = 0; i < bones.size(); i++) {
+			if (bones.get(i).name().equalsIgnoreCase(name)) {
+				return i;
+			}
+		}
+
+		return -1;
 	}
 
 	/** Углы x y z (радианы) в кватернион x y z w. */
