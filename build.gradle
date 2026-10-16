@@ -251,6 +251,9 @@ tasks.register("productionClientGameTest", net.fabricmc.loom.task.prod.ClientPro
 		def folder = dir.get().asFile
 		folder.deleteDir()
 		folder.mkdirs()
+		// Тест поднимает и выделенный сервер в той же папке.
+		// Значение true означает согласие с EULA Minecraft (принято владельцем проекта).
+		new File(folder, "eula.txt").text = "eula=true\n"
 	}
 }
 
