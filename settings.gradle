@@ -14,3 +14,6 @@ rootProject.name = 'tf2mc'
 
 // Чистая математика движения, без зависимостей от Minecraft.
 include 'physics'
+
+// Чтение моделей TF2 из расширительного пака, без зависимостей от Minecraft.
+include 'sourcemodel'
