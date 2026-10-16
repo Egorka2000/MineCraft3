@@ -19,7 +19,7 @@ function Check([bool]$condition, [string]$message) {
     if (-not $condition) { $script:failures += $message }
 }
 
-function New-File([string]$relative, [string]$text = "x") {
+function Add-PackFile([string]$relative, [string]$text = "x") {
     $path = Join-Path $pack $relative
     New-Item -ItemType Directory -Force (Split-Path $path -Parent) | Out-Null
     [System.IO.File]::WriteAllText($path, $text)
@@ -27,7 +27,7 @@ function New-File([string]$relative, [string]$text = "x") {
 
 try {
     # Таблица звуков: всё, что встречается в настоящих таблицах TF2.
-    New-File "scripts/game_sounds_weapons.txt" @'
+    Add-PackFile "scripts/game_sounds_weapons.txt" @'
 // Комментарий
 "Weapon_RPG.Single"
 {
@@ -78,11 +78,11 @@ try {
 }
 '@
     # Не звуки, а движения губ: конвертер должен его пропустить.
-    New-File "scripts/game_sounds_vo_phonemes.txt" "`"vo\burp02.mp3`" { `"wave`" `"vo/soldier_yes01.mp3`" }"
-    foreach ($file in "rocket_shoot", "explode1", "explode2", "quiet", "silent") { New-File "sound/weapons/$file.wav" }
-    New-File "sound/vo/soldier_yes01.mp3"
-    New-File "models/player/soldier.mdl"
-    New-File "materials/models/player/soldier/soldier_red.vtf"
+    Add-PackFile "scripts/game_sounds_vo_phonemes.txt" "`"vo\burp02.mp3`" { `"wave`" `"vo/soldier_yes01.mp3`" }"
+    foreach ($file in "rocket_shoot", "explode1", "explode2", "quiet", "silent") { Add-PackFile "sound/weapons/$file.wav" }
+    Add-PackFile "sound/vo/soldier_yes01.mp3"
+    Add-PackFile "models/player/soldier.mdl"
+    Add-PackFile "materials/models/player/soldier/soldier_red.vtf"
 
     & powershell -NoProfile -ExecutionPolicy Bypass -File $converter -PackDir $pack -ZipPath $zipPath | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "конвертер завершился с кодом $LASTEXITCODE" }
@@ -110,12 +110,12 @@ try {
     $events = @($sounds.PSObject.Properties | ForEach-Object { $_.Name })
 
     # Правила Minecraft: имена строчные, громкость и высота больше нуля.
-    foreach ($event in $sounds.PSObject.Properties) {
-        Check ($event.Name -cmatch '^[a-z0-9/._-]+$') "недопустимое имя звука: $($event.Name)"
-        foreach ($sound in $event.Value.sounds) {
+    foreach ($soundEvent in $sounds.PSObject.Properties) {
+        Check ($soundEvent.Name -cmatch '^[a-z0-9/._-]+$') "недопустимое имя звука: $($soundEvent.Name)"
+        foreach ($sound in $soundEvent.Value.sounds) {
             Check ($sound.name -cmatch '^tf2mc:[a-z0-9/._-]+$') "недопустимое имя файла: $($sound.name)"
-            if ($null -ne $sound.volume) { Check ($sound.volume -gt 0) "громкость не больше 0: $($event.Name)" }
-            if ($null -ne $sound.pitch) { Check ($sound.pitch -gt 0) "высота не больше 0: $($event.Name)" }
+            if ($null -ne $sound.volume) { Check ($sound.volume -gt 0) "громкость не больше 0: $($soundEvent.Name)" }
+            if ($null -ne $sound.pitch) { Check ($sound.pitch -gt 0) "высота не больше 0: $($soundEvent.Name)" }
         }
     }
 

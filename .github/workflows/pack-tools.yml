@@ -27,12 +27,13 @@ jobs:
     steps:
       - name: checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      # Write-Host в скриптах — это вывод для игрока, запускающего их двойным щелчком, а не ошибка.
+      # Внутри run только ASCII: Windows PowerShell читает этот код в кодировке системы.
       - name: lint scripts
         run: |
           Install-Module PSScriptAnalyzer -Scope CurrentUser -Force -SkipPublisherCheck
-          # Write-Host — это вывод для игрока, запускающего скрипт двойным щелчком, а не ошибка.
           $issues = Invoke-ScriptAnalyzer -Path tools/expansion-pack -Recurse -Severity Warning,Error -ExcludeRule PSAvoidUsingWriteHost
           $issues | Format-Table -AutoSize RuleName, Severity, ScriptName, Line, Message | Out-String -Width 300 | Write-Host
-          if ($issues) { throw "PSScriptAnalyzer: замечаний $(@($issues).Count)" }
+          if ($issues) { throw "PSScriptAnalyzer issues: $(@($issues).Count)" }
       - name: test converter
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/expansion-pack/tests/convert-pack.test.ps1

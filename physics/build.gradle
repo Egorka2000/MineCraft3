@@ -3,6 +3,7 @@
 plugins {
 	id 'java-library'
 	id 'checkstyle'
+	id 'jacoco'
 }
 
 repositories {
@@ -28,6 +29,17 @@ tasks.withType(JavaCompile).configureEach {
 
 test {
 	useJUnitPlatform()
+	finalizedBy tasks.named("jacocoTestReport")
+}
+
+jacoco {
+	toolVersion = project.jacoco_version
+}
+
+tasks.named("jacocoTestReport") {
+	reports {
+		xml.required = true
+	}
 }
 
 checkstyle {
