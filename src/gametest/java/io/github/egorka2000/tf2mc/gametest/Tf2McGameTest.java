@@ -43,9 +43,12 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
 
 /**
  * Серверные игровые тесты: запускают настоящий сервер с модом.
@@ -558,6 +561,52 @@ public class Tf2McGameTest {
 			run(server.createCommandSourceStack(), "class vanilla " + name);
 			server.getScoreboard().removePlayerFromTeam(player.getScoreboardName());
 			server.getPlayerList().remove(player);
+		}
+
+		helper.succeed();
+	}
+
+	// Шаг 12а: дверь зоны возрождения пропускает только свою команду.
+	@GameTest
+	public void spawnDoorLetsOnlyOwnTeamThrough(GameTestHelper helper) {
+		MinecraftServer server = helper.getLevel().getServer();
+		ServerLevel level = helper.getLevel();
+		ServerPlayer red = joinTestPlayer(helper, "tf2mc-door-red");
+		ServerPlayer blu = joinTestPlayer(helper, "tf2mc-door-blu");
+		ServerPlayer neutral = joinTestPlayer(helper, "tf2mc-door-neutral");
+		BlockPos door = new BlockPos(3, 1, 3);
+
+		try {
+			helper.setBlock(door, Tf2Blocks.RED_SPAWN_DOOR);
+			helper.setBlock(door.above(), Tf2Blocks.RED_SPAWN_DOOR);
+			run(server.createCommandSourceStack(), "team red tf2mc-door-red");
+			run(server.createCommandSourceStack(), "team blu tf2mc-door-blu");
+
+			BlockPos absolute = helper.absolutePos(door);
+			BlockState state = level.getBlockState(absolute);
+			check(state.getCollisionShape(level, absolute, CollisionContext.of(red)).isEmpty(), "дверь RED не пропускает игрока RED");
+			check(!state.getCollisionShape(level, absolute, CollisionContext.of(blu)).isEmpty(), "дверь RED пропускает игрока BLU");
+			check(!state.getCollisionShape(level, absolute, CollisionContext.of(neutral)).isEmpty(), "дверь RED пропускает нейтрального");
+			check(!state.getCollisionShape(level, absolute, CollisionContext.empty()).isEmpty(), "дверь RED пропускает снаряды и прочее");
+
+			// Настоящее движение: RED проходит насквозь, BLU упирается.
+			for (ServerPlayer player : new ServerPlayer[] {red, blu}) {
+				player.connection.handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
+				player.setGameMode(GameType.SURVIVAL);
+				player.setPos(helper.absoluteVec(new Vec3(1.5, 1.0, 3.5)));
+				player.move(MoverType.SELF, new Vec3(3.0, 0.0, 0.0));
+			}
+
+			double doorFace = helper.absoluteVec(new Vec3(3.0, 1.0, 3.5)).x;
+			check(red.getX() > doorFace + 1.0, "игрок RED не прошёл сквозь дверь: x " + (red.getX() - doorFace));
+			check(blu.getX() < doorFace, "игрок BLU прошёл сквозь дверь: x " + (blu.getX() - doorFace));
+		} finally {
+			helper.setBlock(door, Blocks.AIR);
+			helper.setBlock(door.above(), Blocks.AIR);
+			for (ServerPlayer player : new ServerPlayer[] {red, blu, neutral}) {
+				server.getScoreboard().removePlayerFromTeam(player.getScoreboardName());
+				server.getPlayerList().remove(player);
+			}
 		}
 
 		helper.succeed();
