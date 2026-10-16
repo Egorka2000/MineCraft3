@@ -1,6 +1,7 @@
 # Сборка и тесты на каждый PR и на каждый коммит в main.
 # Задача build включает проверки компилятора (-Werror), Checkstyle,
-# юнит-тесты мода (src/test) и математики движения (physics/src/test) с отчётом о покрытии,
+# юнит-тесты мода (src/test), математики движения (physics/src/test) и чтения моделей
+# (sourcemodel/src/test) с отчётом о покрытии,
 # серверные игровые тесты (src/gametest) в среде разработки и на готовом jar
 # в настоящем сервере Fabric, проверку состава jar.
 # Клиентские тесты и скрипты пака — в client-game-test.yml и pack-tools.yml.
@@ -60,6 +61,7 @@ jobs:
           path: |
             build/reports/jacoco/test/
             physics/build/reports/jacoco/test/
+            sourcemodel/build/reports/jacoco/test/
           retention-days: 14
       # jar из main хранится дольше: его можно скачать и поставить; jar из PR нужен недолго.
       - name: capture build artifacts
