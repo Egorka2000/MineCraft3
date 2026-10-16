@@ -4,11 +4,13 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.tree.CommandNode;
 import io.github.egorka2000.tf2mc.Tf2Mc;
+import io.github.egorka2000.tf2mc.block.Tf2Blocks;
 import io.github.egorka2000.tf2mc.clazz.ClassHealth;
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
 import io.github.egorka2000.tf2mc.clazz.TfClass;
@@ -16,6 +18,7 @@ import io.github.egorka2000.tf2mc.command.Tf2Commands;
 import io.github.egorka2000.tf2mc.config.ConfigManager;
 import io.github.egorka2000.tf2mc.config.Tf2Config;
 import io.github.egorka2000.tf2mc.movement.SpeedometerToggle;
+import io.github.egorka2000.tf2mc.team.TeamSpawns;
 import io.github.egorka2000.tf2mc.team.Teams;
 import io.github.egorka2000.tf2mc.team.TfTeam;
 import io.github.egorka2000.tf2mc.weapon.RocketBlast;
@@ -352,6 +355,63 @@ public class Tf2McGameTest {
 		}
 
 		helper.succeed();
+	}
+
+	// Шаг 12а: точки возрождения команд.
+	@GameTest
+	public void teamSpawnPointsPlacePlayers(GameTestHelper helper) {
+		MinecraftServer server = helper.getLevel().getServer();
+		ServerPlayer player = joinTestPlayer(helper, "tf2mc-spawn");
+		BlockPos red = new BlockPos(1, 1, 1);
+		BlockPos blu = new BlockPos(6, 1, 6);
+
+		try {
+			player.connection.handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
+			player.setGameMode(GameType.SURVIVAL);
+			helper.setBlock(red, Tf2Blocks.RED_SPAWN);
+			helper.setBlock(blu, Tf2Blocks.BLU_SPAWN);
+
+			// Нейтральный игрок никуда не переносится.
+			Vec3 before = player.position();
+			check(!TeamSpawns.sendToSpawn(player), "нейтрального игрока перенесло на точку");
+			check(player.position().equals(before), "нейтральный игрок сдвинулся");
+
+			// Вступивший в команду встаёт на её точку.
+			run(player.createCommandSourceStack(), "team red");
+			checkOnSpawn(helper, player, red, "после вступления в RED");
+
+			// После смерти — снова на точке своей команды.
+			player.teleportTo(player.level(), before.x, before.y, before.z, Set.of(), 0.0f, 0.0f, true);
+			player = server.getPlayerList().respawn(player, false, Entity.RemovalReason.KILLED);
+			// Игра после возрождения сама переключает соединение на нового игрока; здесь возрождение
+			// вызвано напрямую, и без этого перенос нового игрока ушёл бы старому.
+			player.connection.player = player;
+			checkOnSpawn(helper, player, red, "после перерождения в RED");
+
+			run(player.createCommandSourceStack(), "team blu");
+			checkOnSpawn(helper, player, blu, "после перехода в BLU");
+
+			// Сломанная точка вычёркивается: у BLU точек не остаётся, игрок остаётся на месте.
+			helper.setBlock(blu, Blocks.AIR);
+			check(TeamSpawns.of(server, TfTeam.BLU).isEmpty(), "сломанная точка осталась в списке");
+			check(TeamSpawns.of(server, TfTeam.RED).size() == 1, "точек RED: " + TeamSpawns.of(server, TfTeam.RED).size());
+			check(!TeamSpawns.sendToSpawn(player), "игрока перенесло на сломанную точку");
+		} finally {
+			helper.setBlock(red, Blocks.AIR);
+			helper.setBlock(blu, Blocks.AIR);
+			TeamSpawns.of(server, TfTeam.RED);
+			server.getScoreboard().removePlayerFromTeam(player.getScoreboardName());
+			server.getPlayerList().remove(player);
+		}
+
+		helper.succeed();
+	}
+
+	private static void checkOnSpawn(GameTestHelper helper, ServerPlayer player, BlockPos spawn, String where) {
+		Vec3 expected = Vec3.atBottomCenterOf(helper.absolutePos(spawn).above());
+		check(player.position().distanceTo(expected) < 1e-6, where + ": игрок в " + player.position() + ", а не на точке " + expected
+				+ "; команда " + Teams.get(player).map(TfTeam::id).orElse("нет") + ", точек BLU " + TeamSpawns.of(player.level().getServer(), TfTeam.BLU).size()
+				+ ", игрок в списке сервера: " + (player.level().getServer().getPlayerList().getPlayer(player.getUUID()) == player));
 	}
 
 	/**

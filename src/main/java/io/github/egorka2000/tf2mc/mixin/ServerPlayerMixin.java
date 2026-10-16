@@ -2,6 +2,7 @@ package io.github.egorka2000.tf2mc.mixin;
 
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
 import io.github.egorka2000.tf2mc.net.Tf2Networking;
+import io.github.egorka2000.tf2mc.team.TeamSpawns;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -12,10 +13,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * У игрока с классом TF2 здоровье само не восстанавливается, а урон не сбрасывает его скорость.
+ * У игрока с классом TF2 здоровье само не восстанавливается, а урон не сбрасывает его скорость. Игрок
+ * команды возрождается на её точке.
  */
 @Mixin(ServerPlayer.class)
 abstract class ServerPlayerMixin {
@@ -28,6 +31,14 @@ abstract class ServerPlayerMixin {
 		if (PlayerClasses.get((ServerPlayer) (Object) this).isPresent()) {
 			ci.cancel();
 		}
+	}
+
+	// Игрок команды возрождается на её точке, а не у кровати или в точке мира. Место выбирается
+	// здесь, до создания нового игрока: если перенести его уже после возрождения, игра поставит
+	// его обратно.
+	@Inject(method = "findRespawnPositionAndUseSpawnBlock", at = @At("HEAD"), cancellable = true)
+	private void tf2mc$teamSpawn(boolean consumeSpawnBlock, TeleportTransition.PostTeleportTransition after, CallbackInfoReturnable<TeleportTransition> cir) {
+		TeamSpawns.respawnTransition((ServerPlayer) (Object) this, after).ifPresent(cir::setReturnValue);
 	}
 
 	@Inject(method = "hurtServer", at = @At("HEAD"))
