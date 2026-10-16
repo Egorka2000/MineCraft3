@@ -76,6 +76,9 @@ public final class Teams {
 		if (player.gameMode() == GameType.SPECTATOR) {
 			player.setGameMode(modeBeforeSpectating(player));
 		}
+
+		// Как в TF2: вступивший в команду появляется на её точке возрождения, если она есть.
+		TeamSpawns.sendToSpawn(player);
 	}
 
 	/** Зачисляет игрока в команду, где меньше игроков; при равенстве — в случайную. */

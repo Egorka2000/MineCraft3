@@ -1,0 +1,6 @@
+{
+	"model": {
+		"type": "minecraft:model",
+		"model": "tf2mc:block/red_spawn"
+	}
+}

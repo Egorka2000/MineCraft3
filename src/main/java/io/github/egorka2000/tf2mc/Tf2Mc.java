@@ -1,5 +1,6 @@
 package io.github.egorka2000.tf2mc;
 
+import io.github.egorka2000.tf2mc.block.Tf2Blocks;
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
 import io.github.egorka2000.tf2mc.command.Tf2Commands;
 import io.github.egorka2000.tf2mc.config.ConfigManager;
@@ -33,6 +34,7 @@ public class Tf2Mc implements ModInitializer {
 		PlayerClasses.register();
 		Teams.register();
 		Tf2Weapons.register();
+		Tf2Blocks.register();
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> Tf2Commands.register(dispatcher));
 
 		LOGGER.info("tf2-mc загружен");

@@ -1,6 +1,9 @@
 {
 	"item.tf2mc.rocket_launcher": "Rocket Launcher",
 	"entity.tf2mc.rocket": "Rocket",
+	"block.tf2mc.red_spawn": "RED Spawn Point",
+	"block.tf2mc.blu_spawn": "BLU Spawn Point",
+	"itemGroup.tf2mc.blocks": "tf2-mc",
 	"subtitles.tf2mc.weapon_rpg.single": "Rocket Launcher fires",
 	"subtitles.tf2mc.weapon_rpg.reload": "Rocket loaded",
 	"subtitles.tf2mc.baseexplosioneffect.sound": "Rocket explodes",
