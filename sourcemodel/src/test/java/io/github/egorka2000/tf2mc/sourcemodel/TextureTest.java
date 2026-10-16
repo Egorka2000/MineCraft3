@@ -6,9 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -16,50 +13,12 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class TextureTest {
-	private static final int BGR888 = 3;
-	private static final int DXT1 = 13;
-	private static final int DXT5 = 15;
+	private static final int BGR888 = TinyTexture.BGR888;
+	private static final int DXT1 = TinyTexture.DXT1;
+	private static final int DXT5 = TinyTexture.DXT5;
 
-	/**
-	 * Самодельный VTF.
-	 *
-	 * @param minor    вторая цифра версии: до 3 без ресурсов, с 3 — с ресурсом изображения
-	 * @param mipmaps  уровни детализации от мелкого к крупному, уже в нужном формате
-	 */
 	private static byte[] vtf(int minor, int format, int width, int height, byte[]... mipmaps) {
-		int header = minor >= 3 ? 80 + 8 : 80;
-		int size = header;
-		for (byte[] mip : mipmaps) {
-			size += mip.length;
-		}
-
-		ByteBuffer out = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN);
-		out.put(0, "VTF\0".getBytes(StandardCharsets.US_ASCII));
-		out.putInt(4, 7);
-		out.putInt(8, minor);
-		out.putInt(12, header);
-		out.putShort(16, (short) width);
-		out.putShort(18, (short) height);
-		out.putShort(24, (short) 1);
-		out.putInt(52, format);
-		out.put(56, (byte) mipmaps.length);
-		// Мелкой копии нет.
-		out.putInt(57, -1);
-		out.putShort(63, (short) 1);
-
-		if (minor >= 3) {
-			out.putInt(68, 1);
-			out.put(80, (byte) 0x30);
-			out.putInt(84, header);
-		}
-
-		int at = header;
-		for (byte[] mip : mipmaps) {
-			out.put(at, mip);
-			at += mip.length;
-		}
-
-		return out.array();
+		return TinyTexture.vtf(minor, format, width, height, mipmaps);
 	}
 
 	@Test
@@ -142,6 +101,19 @@ class TextureTest {
 		assertEquals(Optional.of("models/player/soldier/soldier_red"), material.baseTexture());
 		assertEquals(Optional.of("1"), material.parameter("$PHONG"));
 		assertEquals(Optional.empty(), material.parameter("animatedtexturevar"));
+	}
+
+	@Test
+	void eyeMaterialFallsBackToIris() {
+		VmtMaterial eye = VmtMaterial.parse("""
+				"EyeRefract"
+				{
+					"$Iris" "models/player/shared/eye-iris-blue"
+				}
+				""");
+
+		assertEquals(Optional.empty(), eye.baseTexture());
+		assertEquals(Optional.of("models/player/shared/eye-iris-blue"), eye.colorTexture());
 	}
 
 	@Test

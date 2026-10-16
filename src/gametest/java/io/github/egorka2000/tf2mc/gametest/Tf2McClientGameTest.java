@@ -22,6 +22,8 @@ import io.github.egorka2000.tf2mc.client.HealthHud;
 import io.github.egorka2000.tf2mc.client.WavSounds;
 import io.github.egorka2000.tf2mc.client.model.ClassModels;
 import io.github.egorka2000.tf2mc.config.ConfigManager;
+import io.github.egorka2000.tf2mc.sourcemodel.TinyModel;
+import io.github.egorka2000.tf2mc.sourcemodel.TinyTexture;
 
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
@@ -66,6 +68,9 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
 			runScenario(context, singleplayer.getServer(), singleplayer.getConnection(), "одиночная игра");
+			// В конце: перезагрузка ресурсов занимает секунды, а проверки сценария чувствительны ко времени.
+			assertTinySourceModelIsDrawn(context, singleplayer.getServer());
+			screenshotRealModel(context, singleplayer.getServer());
 		}
 
 		try (TestDedicatedServerContext server = context.worldBuilder().createServer()) {
@@ -507,6 +512,129 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		});
 		context.waitFor(client -> reload.get().isDone());
 		reload.get().join();
+	}
+
+	/**
+	 * Модель TF2 из пака: самодельная крошечная модель в форматах Source (заготовки подпроекта
+	 * {@code sourcemodel}) кладётся в архив пака под именем модели Soldier. Проверяется весь путь:
+	 * чтение файлов, текстура, отрисовщик мода для игрока с классом, отрисовка без ошибок.
+	 */
+	private static void assertTinySourceModelIsDrawn(ClientGameTestContext context, TestServerContext server) {
+		String packFile = "tf2mc-tiny-model.zip";
+		Path zip = context.computeOnClient(client -> {
+			Path path = client.getResourcePackDirectory().resolve(packFile);
+			String tf2 = "assets/tf2mc/tf2/";
+
+			try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(path))) {
+				writeEntry(out, "pack.mcmeta", "{\"pack\": {\"description\": \"test\", \"min_format\": 97, \"max_format\": 97}}");
+				writeEntry(out, tf2 + "models/player/soldier.mdl", TinyModel.mdl());
+				writeEntry(out, tf2 + "models/player/soldier.vvd", TinyModel.vvd(TinyModel.CHECKSUM));
+				writeEntry(out, tf2 + "models/player/soldier.dx90.vtx", TinyModel.vtx(TinyModel.CHECKSUM));
+				writeEntry(out, tf2 + "materials/models/test/tex_red.vmt", TinyTexture.vmt("models/test/tex_red"));
+				writeEntry(out, tf2 + "materials/models/test/tex_red.vtf", TinyTexture.solid(255, 0, 0));
+			} catch (IOException e) {
+				throw new UncheckedIOException(e);
+			}
+
+			return path;
+		});
+
+		reloadWithPack(context, "file/" + packFile, true);
+		server.runCommand("tf2 class soldier @p");
+		context.waitTicks(10);
+
+		try {
+			if (!context.computeOnClient(client -> ClassModels.isSourceModel())) {
+				throw new AssertionError("самодельная модель TF2 из пака не подключилась");
+			}
+
+			assertDrawnByMod(context, "самодельная модель TF2", true);
+			// Отрисовка от третьего лица: ошибка в отрисовщике уронила бы клиент.
+			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_BACK));
+			context.waitTicks(10);
+			context.runOnClient(client -> client.options.setCameraType(CameraType.FIRST_PERSON));
+		} finally {
+			server.runCommand("tf2 class vanilla @p");
+			reloadWithPack(context, "file/" + packFile, false);
+
+			try {
+				Files.delete(zip);
+			} catch (IOException e) {
+				throw new UncheckedIOException(e);
+			}
+		}
+
+		if (context.computeOnClient(client -> ClassModels.isSourceModel())) {
+			throw new AssertionError("модель TF2 осталась после выключения пака");
+		}
+	}
+
+	private static void writeEntry(ZipOutputStream out, String name, byte[] data) throws IOException {
+		out.putNextEntry(new ZipEntry(name));
+		out.write(data);
+		out.closeEntry();
+	}
+
+	/**
+	 * Модель TF2 из настоящего расширительного пака: только там, где пак собран на этом компьютере
+	 * («Документы\tf2mc-expansion-pack\tf2mc-expansion.zip» или файл из {@code TF2MC_PACK_ZIP}).
+	 * Файлов Valve в репозитории нет, поэтому в CI шаг пропускается. Снимок экрана спереди
+	 * сохраняется в папку снимков тестового клиента для проверки глазами.
+	 */
+	private static void screenshotRealModel(ClientGameTestContext context, TestServerContext server) {
+		String env = System.getenv("TF2MC_PACK_ZIP");
+		Path pack = env != null ? Path.of(env) : Path.of(System.getProperty("user.home"), "Documents", "tf2mc-expansion-pack", "tf2mc-expansion.zip");
+
+		if (!Files.isRegularFile(pack)) {
+			Tf2Mc.LOGGER.info("[модель] нет расширительного пака {}, проверка настоящей модели пропущена", pack);
+			return;
+		}
+
+		String packFile = "tf2mc-expansion-real.zip";
+		Path copy = context.computeOnClient(client -> client.getResourcePackDirectory().resolve(packFile));
+
+		try {
+			Files.copy(pack, copy, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+		} catch (IOException e) {
+			throw new UncheckedIOException(e);
+		}
+
+		reloadWithPack(context, "file/" + packFile, true);
+		server.runCommand("tf2 class soldier @p");
+		context.waitTicks(10);
+
+		try {
+			if (!context.computeOnClient(client -> ClassModels.isSourceModel())) {
+				throw new AssertionError("модель TF2 из пака не подключилась");
+			}
+
+			assertDrawnByMod(context, "модель TF2 из пака", true);
+			// Экран загрузки ресурсов гаснет за пару секунд: ждём, пока он уйдёт со снимка.
+			context.waitTicks(60);
+			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_FRONT));
+			context.waitTicks(20);
+			context.takeScreenshot("tf2mc-real-model-front");
+			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_BACK));
+			context.waitTicks(10);
+			context.takeScreenshot("tf2mc-real-model-back");
+
+			// Игрок BLU — синий скин той же модели.
+			server.runCommand("tf2 team blu @p");
+			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_FRONT));
+			context.waitTicks(10);
+			context.takeScreenshot("tf2mc-real-model-blu");
+			context.runOnClient(client -> client.options.setCameraType(CameraType.FIRST_PERSON));
+		} finally {
+			server.runCommand("tf2 class vanilla @p");
+			server.runCommand("team leave @p");
+			reloadWithPack(context, "file/" + packFile, false);
+
+			try {
+				Files.deleteIfExists(copy);
+			} catch (IOException e) {
+				throw new UncheckedIOException(e);
+			}
+		}
 	}
 
 	/**

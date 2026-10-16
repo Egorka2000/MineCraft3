@@ -9,4 +9,6 @@ import net.minecraft.client.renderer.entity.state.AvatarRenderState;
  * <p>Наследует состояние ванильного игрока: для локального игрока игра требует именно его.
  */
 public final class ClassRenderState extends AvatarRenderState {
+	/** Семейство скинов модели TF2: команда игрока ({@link SourceModels#RED} или {@link SourceModels#BLU}). */
+	public int skinFamily;
 }

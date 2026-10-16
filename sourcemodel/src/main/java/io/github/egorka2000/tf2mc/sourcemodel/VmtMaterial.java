@@ -101,6 +101,14 @@ public final class VmtMaterial {
 		return parameter("$basetexture").map(path -> path.replace('\\', '/').toLowerCase(Locale.ROOT).replaceFirst("\\.vtf$", ""));
 	}
 
+	/**
+	 * Текстура цвета: {@code $basetexture}, а у глаз (шейдер {@code EyeRefract}, у которого её нет)
+	 * — текстура радужки {@code $iris}.
+	 */
+	public Optional<String> colorTexture() {
+		return baseTexture().or(() -> parameter("$iris").map(path -> path.replace('\\', '/').toLowerCase(Locale.ROOT).replaceFirst("\\.vtf$", "")));
+	}
+
 	/** Для шейдера {@code patch}: материал, на котором основан этот. */
 	public Optional<String> include() {
 		return parameter("include").map(path -> path.replace('\\', '/').toLowerCase(Locale.ROOT));

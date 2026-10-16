@@ -72,6 +72,7 @@ configurations {
 
 dependencies {
 	bundled project(":physics")
+	bundled project(":sourcemodel")
 
 	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
@@ -88,10 +89,15 @@ dependencies {
 
 	// Математика движения. Её классы кладутся прямо в jar мода, см. блок jar ниже.
 	implementation project(":physics")
+	// Чтение моделей TF2 из расширительного пака. Тоже кладётся прямо в jar мода.
+	implementation project(":sourcemodel")
 
 	testImplementation platform("org.junit:junit-bom:${project.junit_version}")
 	testImplementation "org.junit.jupiter:junit-jupiter"
 	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+
+	// Самодельные модели TF2 для клиентских тестов: файлов Valve в репозитории нет.
+	gametestImplementation testFixtures(project(":sourcemodel"))
 }
 
 processResources {
@@ -172,6 +178,7 @@ def verifyJarContents = tasks.register("verifyJarContents") {
 			"fabric.mod.json",
 			"io/github/egorka2000/tf2mc/Tf2Mc.class",
 			"io/github/egorka2000/tf2mc/physics/SourceMovement.class",
+			"io/github/egorka2000/tf2mc/sourcemodel/SourceModel.class",
 		]
 		def entries = new java.util.zip.ZipFile(jarFile.get().asFile).withCloseable { zip ->
 			zip.entries().collect { it.name }
@@ -213,6 +220,9 @@ def gametestJar = tasks.register("gametestJar", Jar) {
 	archiveBaseName = "tf2mc-test"
 	destinationDirectory = layout.buildDirectory.dir("gametest-libs")
 	from sourceSets.gametest.output
+	// Самодельные модели TF2 тестам нужны и в настоящем клиенте.
+	def fixtureArchives = objects.newInstance(ArchiveAccess).archives
+	from(project(":sourcemodel").tasks.named("testFixturesJar").flatMap { it.archiveFile }.map { fixtureArchives.zipTree(it) })
 }
 
 def productionGameTest = tasks.register("productionGameTest", net.fabricmc.loom.task.prod.ServerProductionRunTask) {

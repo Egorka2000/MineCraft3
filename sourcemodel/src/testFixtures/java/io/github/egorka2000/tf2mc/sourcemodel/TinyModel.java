@@ -9,17 +9,17 @@ import java.nio.charset.StandardCharsets;
  * одна сетка из четырёх вершин и двух треугольников, одна текстура, два семейства скинов, один
  * хитбокс головы, одна подключённая модель. Файлов Valve не нужно.
  */
-final class TinyModel {
-	static final int CHECKSUM = 12345;
+public final class TinyModel {
+	public static final int CHECKSUM = 12345;
 
 	private TinyModel() {
 	}
 
-	static byte[] mdl() {
+	public static byte[] mdl() {
 		return mdl(48, CHECKSUM);
 	}
 
-	static byte[] mdl(int version, int checksum) {
+	public static byte[] mdl(int version, int checksum) {
 		ByteBuffer out = buffer(1400);
 		out.put(0, "IDST".getBytes(StandardCharsets.US_ASCII));
 		out.putInt(4, version);
@@ -91,7 +91,7 @@ final class TinyModel {
 	/**
 	 * @param fixups по три числа на поправку: уровень, первая вершина, сколько вершин; пусто — без таблицы
 	 */
-	static byte[] vvd(int checksum, int... fixups) {
+	public static byte[] vvd(int checksum, int... fixups) {
 		int vertexStart = 64 + fixups.length * 4;
 		ByteBuffer out = buffer(vertexStart + 4 * 48);
 		out.put(0, "IDSV".getBytes(StandardCharsets.US_ASCII));
@@ -122,7 +122,7 @@ final class TinyModel {
 	}
 
 	/** Два треугольника тройками: 0 1 2 и 2 1 3. */
-	static byte[] vtx(int checksum) {
+	public static byte[] vtx(int checksum) {
 		ByteBuffer out = buffer(173);
 		out.putInt(0, 7);
 		out.putInt(16, checksum);
