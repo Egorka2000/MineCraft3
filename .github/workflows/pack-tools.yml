@@ -4,10 +4,8 @@
 name: pack-tools
 
 on:
+  pull_request:
   workflow_dispatch:
-  # ВРЕМЕННО: первый прогон в ветке, пока задачи нет в main.
-  push:
-    branches: [ci-client-tests]
 
 concurrency:
   group: pack-tools-${{ github.event_name == 'pull_request' && github.ref || github.sha }}

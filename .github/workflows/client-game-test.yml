@@ -5,6 +5,8 @@
 # создаётся в памяти (драйвер offscreen), без виртуального экрана. С xvfb и GLX клиент
 # Minecraft 26.3 зависает.
 #
+# Запускается на каждый PR, обе задачи обязательны для слияния.
+#
 # Две задачи:
 #   client-game-test — тесты в среде разработки (gradlew runClientGameTest);
 #   production-client-game-test — те же тесты на готовом jar мода в настоящем клиенте Fabric.
@@ -12,6 +14,7 @@
 name: client-game-test
 
 on:
+  pull_request:
   workflow_dispatch:
 
 concurrency:
