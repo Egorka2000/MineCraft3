@@ -8,6 +8,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
+import io.github.egorka2000.tf2mc.net.Tf2Networking;
 import io.netty.buffer.ByteBuf;
 
 import net.fabricmc.fabric.api.attachment.v1.AttachmentRegistry;
@@ -125,6 +126,7 @@ public final class RocketLauncher {
 		store(player, magazine.fire(RULES));
 		RocketEntity.fire(player.level(), player);
 		play(player, Tf2Sounds.ROCKET_LAUNCHER_SHOOT);
+		Tf2Networking.weaponAction(player, WeaponAction.FIRE);
 		return true;
 	}
 
@@ -173,6 +175,12 @@ public final class RocketLauncher {
 				if (next.clip() > magazine.clip()) {
 					play(player, Tf2Sounds.ROCKET_LAUNCHER_RELOAD);
 				}
+
+				WeaponAction reload = WeaponAction.reload(magazine, next);
+
+				if (reload != null) {
+					Tf2Networking.weaponAction(player, reload);
+				}
 			}
 		}
 	}
@@ -193,9 +201,13 @@ public final class RocketLauncher {
 		return ammo != null && ammo.clip() > 0 ? InteractionResult.SUCCESS : InteractionResult.FAIL;
 	}
 
-	/** Звук оружия слышат все вокруг, включая самого игрока. */
+	/**
+	 * Звук оружия слышат все вокруг, включая самого игрока. Звук привязан к игроку и движется
+	 * вместе с ним: звук в неподвижной точке выстрела быстрый игрок оставлял бы позади, и свой
+	 * выстрел слышался бы сбоку или сзади.
+	 */
 	private static void play(ServerPlayer player, SoundEvent sound) {
-		player.level().playSound(null, player.getX(), player.getEyeY(), player.getZ(), sound, SoundSource.PLAYERS, 1.0F, 1.0F);
+		player.level().playSound(null, player, sound, SoundSource.PLAYERS, 1.0F, 1.0F);
 	}
 
 	/** Состояние обоймы игрока; после перезахода восстанавливается по сохранённому боезапасу. */

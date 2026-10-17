@@ -67,14 +67,98 @@ public final class Pose {
 	}
 
 	/**
+	 * Накладывает на позу поправку из дельта-анимации с весом {@code weight}: смещения
+	 * прибавляются, повороты домножаются на долю поправки. У поправок «после» ({@code post})
+	 * поворот поправки применяется после основного: основной · поправка; иначе поправка · основной.
+	 */
+	public static Pose addDelta(Pose base, Pose delta, float weight, boolean post) {
+		return layer(base, delta, weight, null, true, post);
+	}
+
+	/**
+	 * Накладывает позу последовательности на уже набранную позу, как игра TF2: каждая кость — со
+	 * своей силой {@code weight × boneWeights[кость]}. Поправка (дельта) прибавляется
+	 * ({@link #addDelta}), обычная поза смешивается ({@link #blend}). Кости с силой 0 не меняются.
+	 *
+	 * <p>Правило — по открытому Source SDK 2013 ({@code bone_setup.cpp}, смешивание костей);
+	 * код написан заново.
+	 *
+	 * @param boneWeights веса костей из последовательности; {@code null} — все 1
+	 */
+	public static Pose layer(Pose base, Pose over, float weight, float[] boneWeights, boolean delta, boolean post) {
+		Pose out = new Pose(base.bones());
+		float[] identity = {0, 0, 0, 1};
+		float[] scaled = new float[4];
+		float[] q = new float[4];
+		float s = Math.clamp(weight, 0.0F, 1.0F);
+
+		for (int bone = 0; bone < base.bones(); bone++) {
+			float w = s * (boneWeights == null || bone >= boneWeights.length ? 1.0F : boneWeights[bone]);
+			int p = bone * 3;
+			int r = bone * 4;
+
+			if (w <= 0.0F) {
+				System.arraycopy(base.positions, p, out.positions, p, 3);
+				System.arraycopy(base.rotations, r, out.rotations, r, 4);
+				continue;
+			}
+
+			if (delta) {
+				for (int i = 0; i < 3; i++) {
+					out.positions[p + i] = base.positions[p + i] + over.positions[p + i] * w;
+				}
+
+				float[] d = {over.rotations[r], over.rotations[r + 1], over.rotations[r + 2], over.rotations[r + 3]};
+				slerp(identity, d, 0, Math.min(w, 1.0F), scaled);
+				float[] b = {base.rotations[r], base.rotations[r + 1], base.rotations[r + 2], base.rotations[r + 3]};
+				float[] result = post ? multiply(b, scaled) : multiply(scaled, b);
+				normalize(result);
+				System.arraycopy(result, 0, out.rotations, r, 4);
+			} else {
+				float t = Math.min(w, 1.0F);
+
+				for (int i = 0; i < 3; i++) {
+					out.positions[p + i] = base.positions[p + i] + (over.positions[p + i] - base.positions[p + i]) * t;
+				}
+
+				slerp(base.rotations, over.rotations, r, t, q);
+				System.arraycopy(q, 0, out.rotations, r, 4);
+			}
+		}
+
+		return out;
+	}
+
+	/** Произведение кватернионов {@code a · b}: сначала поворот b, затем a. */
+	static float[] multiply(float[] a, float[] b) {
+		return new float[] {
+			a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
+			a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+			a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
+			a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]};
+	}
+
+	private static void normalize(float[] q) {
+		float length = (float) Math.sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
+
+		for (int i = 0; i < 4; i++) {
+			q[i] /= length;
+		}
+	}
+
+	/**
 	 * Матрицы отрисовки: для каждой кости 12 чисел, матрица 3×4 по строкам, которая переводит
 	 * вершину из пространства привязки (как она записана в VVD) в пространство модели в этой позе.
 	 */
 	public float[] skinMatrices(List<StudioModel.Bone> bones) {
+		return skinMatrices(bones, worldMatrices(bones));
+	}
+
+	/** Матрицы костей в пространстве модели: 12 чисел на кость, 3×4 по строкам. */
+	public float[] worldMatrices(List<StudioModel.Bone> bones) {
 		int count = bones.size();
 		float[] world = new float[count * 12];
 		float[] local = new float[12];
-		float[] skin = new float[count * 12];
 
 		for (int i = 0; i < count; i++) {
 			matrix(rotations, i * 4, positions, i * 3, local);
@@ -85,11 +169,62 @@ public final class Pose {
 			} else {
 				concat(world, parent * 12, local, 0, world, i * 12);
 			}
+		}
 
+		return world;
+	}
+
+	/**
+	 * Матрицы отрисовки модели, прикреплённой к другой, как оружие TF2 к персонажу: кость с тем же
+	 * именем, что у кости носителя, повторяет её положение; остальные висят на своих родителях
+	 * в начальной позе.
+	 *
+	 * @param carrierWorld матрицы костей носителя ({@link #worldMatrices})
+	 */
+	public static float[] attachedSkinMatrices(List<StudioModel.Bone> bones, List<StudioModel.Bone> carrierBones, float[] carrierWorld) {
+		int count = bones.size();
+		float[] world = new float[count * 12];
+		float[] local = new float[12];
+
+		for (int i = 0; i < count; i++) {
+			StudioModel.Bone bone = bones.get(i);
+			int carrier = indexOf(carrierBones, bone.name());
+
+			if (carrier >= 0) {
+				System.arraycopy(carrierWorld, carrier * 12, world, i * 12, 12);
+				continue;
+			}
+
+			matrix(bone.rotation(), 0, bone.position(), 0, local);
+
+			if (bone.parent() < 0) {
+				System.arraycopy(local, 0, world, i * 12, 12);
+			} else {
+				concat(world, bone.parent() * 12, local, 0, world, i * 12);
+			}
+		}
+
+		return skinMatrices(bones, world);
+	}
+
+	private static float[] skinMatrices(List<StudioModel.Bone> bones, float[] world) {
+		float[] skin = new float[bones.size() * 12];
+
+		for (int i = 0; i < bones.size(); i++) {
 			concat(world, i * 12, bones.get(i).poseToBone(), 0, skin, i * 12);
 		}
 
 		return skin;
+	}
+
+	private static int indexOf(List<StudioModel.Bone> bones, String name) {
+		for (int i = 0; i < bones.size(); i++) {
+			if (bones.get(i).name().equalsIgnoreCase(name)) {
+				return i;
+			}
+		}
+
+		return -1;
 	}
 
 	/** Углы x y z (радианы) в кватернион x y z w. */

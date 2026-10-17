@@ -109,6 +109,24 @@ public final class VmtMaterial {
 		return baseTexture().or(() -> parameter("$iris").map(path -> path.replace('\\', '/').toLowerCase(Locale.ROOT).replaceFirst("\\.vtf$", "")));
 	}
 
+	/**
+	 * Есть ли в материале прозрачные места: {@code $alphatest} или {@code $translucent}. Без них
+	 * альфа-канал текстуры TF2 — не прозрачность, а маска блеска ({@code $basemapalphaphongmask}).
+	 */
+	public boolean seeThrough() {
+		return flag("$alphatest") || flag("$translucent");
+	}
+
+	private boolean flag(String name) {
+		return parameter(name).map(value -> {
+			try {
+				return Float.parseFloat(value.trim()) != 0.0F;
+			} catch (NumberFormatException e) {
+				return false;
+			}
+		}).orElse(false);
+	}
+
 	/** Для шейдера {@code patch}: материал, на котором основан этот. */
 	public Optional<String> include() {
 		return parameter("include").map(path -> path.replace('\\', '/').toLowerCase(Locale.ROOT));

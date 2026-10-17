@@ -90,6 +90,12 @@ class SourceModelTest {
 	}
 
 	@Test
+	void materialPathsAreNormalized() {
+		assertEquals("models/weapons/w_rocketlauncher/w_rocket01", SourceModel.normalize("/models/weapons/w_rocketlauncher/w_rocket01"));
+		assertEquals("models/player/soldier_red", SourceModel.normalize("Models\\Player\\\\Soldier_Red"));
+	}
+
+	@Test
 	void truncatedFileIsRejected() {
 		byte[] mdl = TinyModel.mdl();
 		assertThrows(ModelFormatException.class, () -> StudioModel.read(Arrays.copyOf(mdl, 600)));
