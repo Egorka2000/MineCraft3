@@ -3,6 +3,7 @@ package io.github.egorka2000.tf2mc.gametest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -367,6 +368,52 @@ public class Tf2McGameTest {
 	}
 
 	// Шаг 12а: точки возрождения команд.
+	// Если у команды несколько точек, после смерти игрок появляется на случайной из них, а не всё
+	// время на одной (жалоба владельца проекта на карте 2fort).
+	@GameTest
+	public void respawnPicksRandomTeamSpawn(GameTestHelper helper) {
+		MinecraftServer server = helper.getLevel().getServer();
+		ServerPlayer player = joinTestPlayer(helper, "tf2mc-random-spawn");
+		// Две точки рядом и две далеко, в незагруженных чанках — как вторая комната возрождения на 2fort.
+		List<BlockPos> spawns = List.of(new BlockPos(1, 1, 1), new BlockPos(3, 1, 1), new BlockPos(1, 1, 300), new BlockPos(3, 1, 300));
+		Set<BlockPos> used = new HashSet<>();
+
+		try {
+			player.connection.handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
+			player.setGameMode(GameType.SURVIVAL);
+
+			for (BlockPos spawn : spawns) {
+				helper.setBlock(spawn, Tf2Blocks.RED_SPAWN);
+			}
+
+			run(player.createCommandSourceStack(), "team red");
+
+			BlockPos last = null;
+
+			for (int death = 0; death < 30; death++) {
+				player = server.getPlayerList().respawn(player, false, Entity.RemovalReason.KILLED);
+				player.connection.player = player;
+				BlockPos spawn = helper.relativePos(player.blockPosition().below());
+				check(!spawn.equals(last), "после смерти игрок снова появился на той же точке " + spawn);
+				used.add(spawn);
+				last = spawn;
+			}
+
+			// За 30 смертей не увидеть хотя бы одну из четырёх точек почти невозможно.
+			check(used.size() == 4, "за 30 смертей игрок появлялся только на точках " + used);
+		} finally {
+			for (BlockPos spawn : spawns) {
+				helper.setBlock(spawn, Blocks.AIR);
+			}
+
+			TeamSpawns.of(server, TfTeam.RED);
+			server.getScoreboard().removePlayerFromTeam(player.getScoreboardName());
+			server.getPlayerList().remove(player);
+		}
+
+		helper.succeed();
+	}
+
 	@GameTest
 	public void teamSpawnPointsPlacePlayers(GameTestHelper helper) {
 		MinecraftServer server = helper.getLevel().getServer();
