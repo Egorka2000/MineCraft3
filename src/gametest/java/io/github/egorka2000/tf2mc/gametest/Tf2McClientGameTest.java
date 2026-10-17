@@ -19,10 +19,12 @@ import java.util.zip.ZipOutputStream;
 
 import com.mojang.blaze3d.audio.SoundBuffer;
 import io.github.egorka2000.tf2mc.Tf2Mc;
+import io.github.egorka2000.tf2mc.block.Tf2Blocks;
 import io.github.egorka2000.tf2mc.client.HealthHud;
 import io.github.egorka2000.tf2mc.client.WavSounds;
 import io.github.egorka2000.tf2mc.client.model.ClassModels;
 import io.github.egorka2000.tf2mc.client.model.PlayerAnimations;
+import io.github.egorka2000.tf2mc.client.model.PropModels;
 import io.github.egorka2000.tf2mc.config.ConfigManager;
 import io.github.egorka2000.tf2mc.sourcemodel.TinyModel;
 import io.github.egorka2000.tf2mc.sourcemodel.TinyTexture;
@@ -545,6 +547,10 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 				writeEntry(out, tf2 + "models/weapons/w_models/w_rocket.mdl", TinyModel.mdl());
 				writeEntry(out, tf2 + "models/weapons/w_models/w_rocket.vvd", TinyModel.vvd(TinyModel.CHECKSUM));
 				writeEntry(out, tf2 + "models/weapons/w_models/w_rocket.dx90.vtx", TinyModel.vtx(TinyModel.CHECKSUM));
+				// И под именем аптечки.
+				writeEntry(out, tf2 + "models/items/medkit_small.mdl", TinyModel.mdl());
+				writeEntry(out, tf2 + "models/items/medkit_small.vvd", TinyModel.vvd(TinyModel.CHECKSUM));
+				writeEntry(out, tf2 + "models/items/medkit_small.dx90.vtx", TinyModel.vtx(TinyModel.CHECKSUM));
 				writeEntry(out, tf2 + "materials/models/test/tex_red.vmt", TinyTexture.vmt("models/test/tex_red"));
 				writeEntry(out, tf2 + "materials/models/test/tex_red.vtf", TinyTexture.solid(255, 0, 0));
 			} catch (IOException e) {
@@ -567,6 +573,10 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 
 			if (context.computeOnClient(client -> ClassModels.rocket().isEmpty())) {
 				throw new AssertionError("самодельная модель ракеты из пака не подключилась");
+			}
+
+			if (context.computeOnClient(client -> PropModels.forBlock(Tf2Blocks.SMALL_HEALTH_KIT).isEmpty())) {
+				throw new AssertionError("самодельная модель аптечки из пака не подключилась");
 			}
 
 			// Выстрел из ракетницы: сервер сообщает клиенту событие, по которому играется жест.
@@ -602,8 +612,11 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 
 			// Отрисовка от третьего лица, с ракетой в полёте: ошибка в отрисовщике уронила бы клиент.
 			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_BACK));
+			// И с аптечкой перед игроком: её рисует отрисовщик блочной сущности.
+			server.runCommand("execute at @p run setblock ~ ~ ~2 tf2mc:small_health_kit");
 			server.runCommand("execute as @a run tf2 rocket");
 			context.waitTicks(10);
+			server.runCommand("execute at @p run setblock ~ ~ ~2 minecraft:air");
 			context.runOnClient(client -> client.options.setCameraType(CameraType.FIRST_PERSON));
 		} finally {
 			server.runCommand("tf2 class vanilla @p");
@@ -616,7 +629,8 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			}
 		}
 
-		if (context.computeOnClient(client -> ClassModels.isSourceModel() || ClassModels.rocket().isPresent())) {
+		if (context.computeOnClient(client -> ClassModels.isSourceModel() || ClassModels.rocket().isPresent()
+				|| PropModels.forBlock(Tf2Blocks.SMALL_HEALTH_KIT).isPresent())) {
 			throw new AssertionError("модель TF2 осталась после выключения пака");
 		}
 	}
@@ -749,6 +763,38 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			context.waitTicks(5);
 			context.takeScreenshot("tf2mc-real-model-rocket-side");
 			server.runCommand("kill @e[type=tf2mc:rocket]");
+
+			// Спецблоки моделями TF2: аптечки слева, патроны справа, шкаф RED впереди лицом к игроку.
+			// Издалека дверцы шкафа закрыты, а когда игрок RED подходит — открываются.
+			String[] pickups = {"small_health_kit", "medium_health_kit", "large_health_kit", "small_ammo_pack", "medium_ammo_pack", "large_ammo_pack"};
+			int[] offsets = {3, 2, 1, -1, -2, -3};
+
+			for (int i = 0; i < pickups.length; i++) {
+				server.runCommand("execute at @p run setblock ~" + offsets[i] + " ~ ~3 tf2mc:" + pickups[i]);
+			}
+
+			server.runCommand("execute at @p run setblock ~ ~ ~6 tf2mc:red_resupply[facing=north]");
+			context.runOnClient(client -> client.player.setXRot(20.0F));
+			context.waitTicks(10);
+			context.takeScreenshot("tf2mc-real-model-props");
+			server.runCommand("tf2 team red @p");
+			server.runCommand("execute at @p run tp @p ~ ~ ~4.5");
+			context.runOnClient(client -> client.player.setXRot(-10.0F));
+			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_BACK));
+			context.waitTicks(30);
+			context.takeScreenshot("tf2mc-real-model-locker-open");
+			context.runOnClient(client -> client.options.setCameraType(CameraType.FIRST_PERSON));
+			server.runCommand("execute at @p run fill ~-3 ~ ~-2 ~3 ~ ~2 minecraft:air");
+			server.runCommand("execute at @p run tp @p ~ ~ ~-4.5");
+			context.runOnClient(client -> client.player.setXRot(0.0F));
+
+			// В воде с головой — плавание.
+			server.runCommand("execute at @p run fill ~-3 ~ ~-3 ~3 ~3 ~3 minecraft:water");
+			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_FRONT));
+			context.waitTicks(30);
+			context.takeScreenshot("tf2mc-real-model-swim");
+			server.runCommand("execute at @p run fill ~-3 ~ ~-3 ~3 ~3 ~3 minecraft:air");
+			context.waitTicks(40);
 
 			// Игрок BLU — синий скин той же модели.
 			server.runCommand("tf2 team blu @p");
