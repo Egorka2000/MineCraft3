@@ -1,9 +1,14 @@
 package io.github.egorka2000.tf2mc.net;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.movement.SpeedometerToggle;
+import io.github.egorka2000.tf2mc.weapon.WeaponAction;
 
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 
@@ -20,6 +25,7 @@ public final class Tf2Networking {
 	public static void register() {
 		PayloadTypeRegistry.clientboundPlay().register(MovementSyncPayload.TYPE, MovementSyncPayload.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(VelocityImpulsePayload.TYPE, VelocityImpulsePayload.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(WeaponActionPayload.TYPE, WeaponActionPayload.CODEC);
 
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> sync(handler.getPlayer()));
 		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> SpeedometerToggle.forget(handler.getPlayer().getUUID()));
@@ -39,6 +45,19 @@ public final class Tf2Networking {
 
 		player.setDeltaMovement(player.getDeltaMovement().add(impulse));
 		player.connection.send(new ClientboundSetEntityMotionPacket(player));
+	}
+
+	/** Рассылает событие оружия игрока ему самому и всем, кто его видит: их клиенты проиграют жест. */
+	public static void weaponAction(ServerPlayer player, WeaponAction action) {
+		WeaponActionPayload payload = new WeaponActionPayload(player.getId(), action);
+		List<ServerPlayer> receivers = new ArrayList<>(PlayerLookup.tracking(player));
+		receivers.add(player);
+
+		for (ServerPlayer receiver : receivers) {
+			if (ServerPlayNetworking.canSend(receiver, WeaponActionPayload.TYPE)) {
+				ServerPlayNetworking.send(receiver, payload);
+			}
+		}
 	}
 
 	/** Отправляет игроку действующие настройки сервера и состояние спидометра. */

@@ -40,7 +40,23 @@ public final class ClassModels {
 	/** Текстуры модели TF2, зарегистрированные при прошлой перезагрузке ресурсов. */
 	private static final List<Identifier> sourceTextures = new ArrayList<>();
 
+	/** Модель ракеты TF2 из расширительного пака; пусто — ракета невидима. */
+	private static Optional<SourceModels.Prop> rocket = Optional.empty();
+
+	/** Руки и оружие от первого лица из расширительного пака; пусто — руки рисует игра. */
+	private static Optional<SourceModels.PlayerMesh> viewModel = Optional.empty();
+
 	private ClassModels() {
+	}
+
+	/** Руки Soldier с ракетницей от первого лица, если они есть в паке вместе с анимациями. */
+	public static Optional<SourceModels.PlayerMesh> viewModel() {
+		return viewModel;
+	}
+
+	/** Модель ракеты TF2, если расширительный пак подключён. */
+	public static Optional<SourceModels.Prop> rocket() {
+		return rocket;
 	}
 
 	/** Рисуется ли сейчас игрок с классом моделью из ресурс-пака. */
@@ -61,8 +77,13 @@ public final class ClassModels {
 		}
 
 		sourceTextures.clear();
+		rocket = SourceModels.loadMesh(resources, textureManager, SourceModels.ROCKET, Tf2Mc.config().current().unitsPerBlock(), sourceTextures)
+				.map(SourceModels.Prop::new);
+		// Руки без анимаций не нужны: в паке до 2026-10-17 файла анимаций рук нет.
+		viewModel = SourceModels.load(resources, textureManager, SourceModels.SOLDIER_ARMS, SourceModels.ROCKET_LAUNCHER,
+				Tf2Mc.config().current().unitsPerBlock(), sourceTextures).filter(arms -> arms.animations().isPresent() && arms.weapon().isPresent());
 		Optional<SourceModels.PlayerMesh> soldier = SourceModels.load(
-				resources, textureManager, SourceModels.SOLDIER, Tf2Mc.config().current().unitsPerBlock(), sourceTextures);
+				resources, textureManager, SourceModels.SOLDIER, SourceModels.ROCKET_LAUNCHER, Tf2Mc.config().current().unitsPerBlock(), sourceTextures);
 
 		if (soldier.isPresent()) {
 			renderer = new SourcePlayerRenderer(context, soldier.get());

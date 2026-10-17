@@ -114,6 +114,32 @@ class AnimationTest {
 	}
 
 	@Test
+	void attachedModelFollowsCarrierBoneByName() {
+		List<StudioModel.Bone> carrier = StudioModel.read(TinyModel.mdl()).bones();
+		Pose pose = Pose.rest(carrier);
+		// Носитель сдвинут: дочерняя кость на 5 по x вместо 0.
+		pose.set(1, new float[] {5, 0, 10}, new float[] {0, 0, 0, 1});
+		float[] world = pose.worldMatrices(carrier);
+		assertEquals(5.0F, world[12 + 3], EPSILON);
+		assertEquals(10.0F, world[12 + 11], EPSILON);
+
+		float[] identity = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+		float[] none = {0, 0, 0};
+		float[] still = {0, 0, 0, 1};
+		// Оружие: кость «child» (как у носителя) и своя кость на 1 по x от неё.
+		List<StudioModel.Bone> weapon = List.of(
+				new StudioModel.Bone("CHILD", -1, none, still, identity, none, none, none),
+				new StudioModel.Bone("barrel", 0, new float[] {1, 0, 0}, still, identity, none, none, none));
+		float[] skin = Pose.attachedSkinMatrices(weapon, carrier, world);
+
+		// Кость с именем носителя повторяет его (регистр не важен), своя висит на ней.
+		assertEquals(5.0F, skin[3], EPSILON);
+		assertEquals(10.0F, skin[11], EPSILON);
+		assertEquals(6.0F, skin[12 + 3], EPSILON);
+		assertEquals(10.0F, skin[12 + 11], EPSILON);
+	}
+
+	@Test
 	void posesBlendHalfway() {
 		Pose a = new Pose(1);
 		a.set(0, new float[] {0, 0, 0}, new float[] {0, 0, 0, 1});
@@ -126,13 +152,113 @@ class AnimationTest {
 	}
 
 	@Test
-	void realSoldierAnimationsStandUpright() throws IOException {
-		Path dir = Path.of(System.getProperty("user.home"), "Documents", "tf2mc-expansion-pack", "pack", "models", "player");
-		String env = System.getenv("TF2MC_PACK_DIR");
-		if (env != null) {
-			dir = Path.of(env, "models", "player");
-		}
+	void deltaIsAddedWithWeight() {
+		Pose base = new Pose(1);
+		base.set(0, new float[] {0, 0, 10}, Pose.eulerToQuaternion(0, 0, 1));
+		Pose delta = new Pose(1);
+		delta.set(0, new float[] {4, 0, 0}, Pose.eulerToQuaternion(0, 0, 1));
+		Pose half = Pose.addDelta(base, delta, 0.5F, true);
 
+		assertArrayEquals(new float[] {2, 0, 10}, half.positions(), EPSILON);
+		// Повороты вокруг одной оси складываются: 1 + 0,5.
+		assertArrayEquals(Pose.eulerToQuaternion(0, 0, 1.5F), half.rotations(), EPSILON);
+	}
+
+	@Test
+	void postDeltaRotatesAfterBase() {
+		float[] x = Pose.eulerToQuaternion(1, 0, 0);
+		float[] z = Pose.eulerToQuaternion(0, 0, 1);
+		Pose base = new Pose(1);
+		base.set(0, new float[3], x);
+		Pose delta = new Pose(1);
+		delta.set(0, new float[3], z);
+
+		assertArrayEquals(Pose.multiply(x, z), Pose.addDelta(base, delta, 1.0F, true).rotations(), EPSILON);
+		assertArrayEquals(Pose.multiply(z, x), Pose.addDelta(base, delta, 1.0F, false).rotations(), EPSILON);
+	}
+
+	@Test
+	void layerWeightRisesAndFalls() {
+		AnimationSet.AutoLayer always = new AnimationSet.AutoLayer(0, -1, 0, 0, 0, 0, 0);
+		AnimationSet.AutoLayer ramp = new AnimationSet.AutoLayer(0, -1, 0, 0.2F, 0.4F, 0.6F, 0.8F);
+
+		assertEquals(0.6F, always.weight(0.7F, 0.6F), EPSILON);
+		assertEquals(0.7F, always.cycle(0.7F), EPSILON);
+		assertEquals(0.0F, ramp.strength(0.1F), EPSILON);
+		assertEquals(0.5F, ramp.strength(0.3F), EPSILON);
+		assertEquals(1.0F, ramp.strength(0.5F), EPSILON);
+		assertEquals(0.5F, ramp.strength(0.7F), EPSILON);
+		assertEquals(0.0F, ramp.strength(0.9F), EPSILON);
+		// Сила слоя умножается на силу основной последовательности, время идёт по отрезку слоя.
+		assertEquals(0.25F, ramp.weight(0.3F, 0.5F), EPSILON);
+		assertEquals(0.5F, ramp.cycle(0.5F), EPSILON);
+	}
+
+	@Test
+	void layerFlagsShapeWeight() {
+		AnimationSet.AutoLayer spline = new AnimationSet.AutoLayer(0, -1, AnimationSet.LAYER_SPLINE, 0, 1, 1, 1);
+		AnimationSet.AutoLayer noblend = new AnimationSet.AutoLayer(0, -1, AnimationSet.LAYER_NOBLEND, 0, 0, 1, 2);
+		AnimationSet.AutoLayer xfade = new AnimationSet.AutoLayer(0, -1, AnimationSet.LAYER_XFADE, 0, 0, 0.5F, 1);
+
+		// Кривая 3s² − 2s³: в четверти пути 0,15625, посередине 0,5.
+		assertEquals(0.15625F, spline.strength(0.25F), EPSILON);
+		assertEquals(0.5F, spline.strength(0.5F), EPSILON);
+		assertEquals(1.0F, noblend.weight(0.5F, 0.3F), EPSILON);
+		// На спаде: s = 0,5 при силе 0,5 — 0,25 / (0,5 + 0,25).
+		assertEquals(1.0F / 3.0F, xfade.weight(0.75F, 0.5F), EPSILON);
+	}
+
+	@Test
+	void boneWeightsLimitLayer() {
+		Pose base = new Pose(2);
+		base.set(0, new float[] {0, 0, 0}, new float[] {0, 0, 0, 1});
+		base.set(1, new float[] {0, 0, 0}, new float[] {0, 0, 0, 1});
+		Pose over = new Pose(2);
+		over.set(0, new float[] {4, 0, 0}, Pose.eulerToQuaternion(0, 0, 1));
+		over.set(1, new float[] {4, 0, 0}, Pose.eulerToQuaternion(0, 0, 1));
+		Pose out = Pose.layer(base, over, 1.0F, new float[] {0.0F, 0.5F}, false, false);
+
+		// Кость с весом 0 не тронута, с весом 0,5 — на полпути.
+		assertArrayEquals(new float[] {0, 0, 0, 2, 0, 0}, out.positions(), EPSILON);
+		assertArrayEquals(new float[] {0, 0, 0, 1}, java.util.Arrays.copyOfRange(out.rotations(), 0, 4), EPSILON);
+		assertArrayEquals(Pose.eulerToQuaternion(0, 0, 0.5F), java.util.Arrays.copyOfRange(out.rotations(), 4, 8), EPSILON);
+	}
+
+	@Test
+	void realSoldierAimsWhereBodyPitchAndYawPoint() throws IOException {
+		Path dir = packDir();
+		assumeTrue(Files.isRegularFile(dir.resolve("soldier_animations.mdl")), "нет расширительного пака");
+		AnimationSet set = AnimationSet.read(Files.readAllBytes(dir.resolve("soldier_animations.mdl")));
+		AnimationSet.Sequence stand = set.sequence("stand_PRIMARY").orElseThrow();
+		int weapon = set.bones().stream().map(StudioModel.Bone::name).toList().indexOf("weapon_bone");
+
+		// Ствол — ось z кости weapon_bone; модель смотрит по x, лево — y, верх — z.
+		float[] up = barrel(set, stand, weapon, 60, 0);
+		float[] down = barrel(set, stand, weapon, -45, 0);
+		float[] right = barrel(set, stand, weapon, 0, 45);
+
+		assertTrue(up[2] > 0.5F, "body_pitch > 0 — ствол вверх: " + up[2]);
+		assertTrue(down[2] < -0.5F, "body_pitch < 0 — ствол вниз: " + down[2]);
+		assertTrue(right[1] < -0.5F, "body_yaw > 0 — ствол вправо: " + right[1]);
+	}
+
+	private static float[] barrel(AnimationSet set, AnimationSet.Sequence sequence, int bone, float pitch, float yaw) {
+		float[] values = new float[set.parameters().size()];
+		values[set.parameter("body_pitch")] = pitch;
+		values[set.parameter("body_yaw")] = yaw;
+		float[] world = set.sampleWithLayers(sequence, 0, values).worldMatrices(set.bones());
+		return new float[] {world[bone * 12 + 2], world[bone * 12 + 6], world[bone * 12 + 10]};
+	}
+
+	private static Path packDir() {
+		String env = System.getenv("TF2MC_PACK_DIR");
+		return env != null ? Path.of(env, "models", "player")
+				: Path.of(System.getProperty("user.home"), "Documents", "tf2mc-expansion-pack", "pack", "models", "player");
+	}
+
+	@Test
+	void realSoldierAnimationsStandUpright() throws IOException {
+		Path dir = packDir();
 		assumeTrue(Files.isRegularFile(dir.resolve("soldier_animations.mdl")), "нет расширительного пака");
 		SourceModel model = SourceModel.read(Files.readAllBytes(dir.resolve("soldier.mdl")), Files.readAllBytes(dir.resolve("soldier.vvd")),
 				Files.readAllBytes(dir.resolve("soldier.dx90.vtx")), 0);

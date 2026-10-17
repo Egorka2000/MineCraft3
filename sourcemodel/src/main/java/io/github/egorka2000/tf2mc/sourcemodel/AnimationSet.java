@@ -1,6 +1,7 @@
 package io.github.egorka2000.tf2mc.sourcemodel;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -23,6 +24,81 @@ public final class AnimationSet {
 
 	/** Последовательность повторяется по кругу. */
 	public static final int SEQUENCE_LOOPING = 0x0001;
+	/** Последовательность — поправка к позе (дельта). */
+	public static final int SEQUENCE_DELTA = 0x0004;
+	/** Поправка применяется после основного поворота. */
+	public static final int SEQUENCE_POST = 0x0400;
+
+	private static final int AUTO_LAYER_SIZE = 24;
+	/** Глубина вложенных слоёв ограничена: в чужом файле слой мог бы ссылаться сам на себя. */
+	private static final int MAX_LAYER_DEPTH = 4;
+	/** Нарастание и спад силы слоя сглажены кривой 3s² − 2s³. */
+	public static final int LAYER_SPLINE = 0x0040;
+	/** На спаде слой перетекает в основную позу, а не просто слабеет. */
+	public static final int LAYER_XFADE = 0x0080;
+	/** Сила слоя не зависит от силы основной последовательности. */
+	public static final int LAYER_NOBLEND = 0x0200;
+	/** Слой, который игра накладывает отдельно, по своему времени: здесь не поддерживается. */
+	public static final int LAYER_LOCAL = 0x1000;
+	/** Отрезок слоя отсчитывается не по времени, а по значению параметра позы. */
+	public static final int LAYER_POSE = 0x4000;
+
+	/**
+	 * Слой, который последовательность накладывает на себя сама, например матрица прицеливания или
+	 * руки в жесте перезарядки. Если начало и конец совпадают, слой действует всегда, с тем же
+	 * временем, что и основная последовательность. Иначе — только на отрезке от начала до конца
+	 * (по доле проигрывания или по параметру позы {@code pose}), нарастая до пика и спадая после
+	 * хвоста; время слоя на отрезке идёт от 0 до 1.
+	 *
+	 * <p>Правила — по открытому Source SDK 2013 ({@code bone_setup.cpp}, наложение слоёв
+	 * последовательности); код написан заново.
+	 */
+	public record AutoLayer(int sequence, int pose, int flags, float start, float peak, float tail, float end) {
+		/**
+		 * Сила слоя без учёта силы основной последовательности; 0 — вне отрезка.
+		 *
+		 * @param index доля проигрывания основной последовательности, а у слоя по параметру позы — значение параметра
+		 */
+		public float strength(float index) {
+			if (start == end) {
+				return 1.0F;
+			}
+
+			if (index < start || index >= end) {
+				return 0.0F;
+			}
+
+			float s = 1.0F;
+
+			if (index < peak && peak != start) {
+				s = (index - start) / (peak - start);
+			} else if (index > tail && end != tail) {
+				s = (end - index) / (end - tail);
+			}
+
+			return (flags & LAYER_SPLINE) != 0 ? s * s * (3.0F - 2.0F * s) : s;
+		}
+
+		/** Сила слоя, если основная последовательность наложена с силой {@code weight}. */
+		public float weight(float index, float weight) {
+			float s = strength(index);
+
+			if (start == end) {
+				return weight;
+			}
+
+			if ((flags & LAYER_XFADE) != 0 && index > tail) {
+				return s * weight / (1.0F - weight + s * weight);
+			}
+
+			return (flags & LAYER_NOBLEND) != 0 ? s : weight * s;
+		}
+
+		/** Время слоя: на отрезке по времени — доля отрезка, иначе — время основной последовательности. */
+		public float cycle(float cycle) {
+			return start == end || (flags & LAYER_POSE) != 0 ? cycle : (cycle - start) / (end - start);
+		}
+	}
 
 	// Флаги данных кости в анимации.
 	private static final int RAW_POSITION = 0x01;
@@ -41,10 +117,22 @@ public final class AnimationSet {
 	 *
 	 * @param groupSize  размер сетки по каждому параметру (1, если параметр не используется)
 	 * @param parameters номера параметров позы по осям сетки; -1 — нет
-	 * @param blends     номера анимаций в сетке построчно, {@code groupSize[0] × groupSize[1]}
+	 * @param blends      номера анимаций в сетке построчно, {@code groupSize[0] × groupSize[1]}
+	 * @param boneWeights сила последовательности по костям, 0..1; у жестов для рук — только кости рук
+	 * @param fadeIn      за сколько секунд игра TF2 переходит на эту последовательность
+	 * @param fadeOut     за сколько секунд игра TF2 уходит с неё
 	 */
 	public record Sequence(String name, String activity, int flags, int[] groupSize, int[] parameters,
-			float[] parameterStart, float[] parameterEnd, int[] blends) {
+			float[] parameterStart, float[] parameterEnd, int[] blends, List<AutoLayer> layers, float[] boneWeights, float fadeIn, float fadeOut) {
+		/** Последовательность — поправка к другой позе, а не поза целиком. */
+		public boolean delta() {
+			return (flags & SEQUENCE_DELTA) != 0;
+		}
+
+		/** Поправка применяется после основного поворота кости. */
+		public boolean post() {
+			return (flags & SEQUENCE_POST) != 0;
+		}
 		public boolean looping() {
 			return (flags & SEQUENCE_LOOPING) != 0;
 		}
@@ -93,7 +181,8 @@ public final class AnimationSet {
 			throw new ModelFormatException("MDL: версия " + version + " не поддерживается");
 		}
 
-		return new AnimationSet(in, StudioModel.readBones(in), readParameters(in), readSequences(in), readAnimations(in));
+		List<StudioModel.Bone> bones = StudioModel.readBones(in);
+		return new AnimationSet(in, bones, readParameters(in), readSequences(in, bones.size()), readAnimations(in));
 	}
 
 	private static List<PoseParameter> readParameters(Bytes in) {
@@ -110,7 +199,7 @@ public final class AnimationSet {
 		return List.copyOf(list);
 	}
 
-	private static List<Sequence> readSequences(Bytes in) {
+	private static List<Sequence> readSequences(Bytes in, int bones) {
 		int count = in.int32(188);
 		int offset = in.int32(192);
 		in.checkArray(offset, count, SEQUENCE_SIZE, "последовательности");
@@ -130,10 +219,49 @@ public final class AnimationSet {
 			int activity = in.int32(at + 8);
 			list.add(new Sequence(in.string(at + in.int32(at + 4)), activity == 0 ? "" : in.string(at + activity), in.int32(at + 12), groupSize,
 					new int[] {in.int32(at + 76), in.int32(at + 80)}, new float[] {in.float32(at + 84), in.float32(at + 88)},
-					new float[] {in.float32(at + 92), in.float32(at + 96)}, blends));
+					new float[] {in.float32(at + 92), in.float32(at + 96)}, blends, readLayers(in, at), readBoneWeights(in, at, bones),
+					in.float32(at + 104), in.float32(at + 108)));
 		}
 
 		return List.copyOf(list);
+	}
+
+	/** Веса костей последовательности; без списка весов — все 1. */
+	private static float[] readBoneWeights(Bytes in, int sequence, int bones) {
+		int offset = in.int32(sequence + 156);
+		float[] weights = new float[bones];
+
+		if (offset == 0) {
+			Arrays.fill(weights, 1.0F);
+			return weights;
+		}
+
+		in.checkArray(sequence + offset, bones, 4, "веса костей последовательности");
+
+		for (int i = 0; i < bones; i++) {
+			weights[i] = in.float32(sequence + offset + i * 4);
+		}
+
+		return weights;
+	}
+
+	private static List<AutoLayer> readLayers(Bytes in, int sequence) {
+		int count = in.int32(sequence + 148);
+		int offset = sequence + in.int32(sequence + 152);
+
+		if (count <= 0) {
+			return List.of();
+		}
+
+		in.checkArray(offset, count, AUTO_LAYER_SIZE, "слои последовательности");
+		List<AutoLayer> layers = new ArrayList<>(count);
+
+		for (int i = 0; i < count; i++) {
+			int at = offset + i * AUTO_LAYER_SIZE;
+			layers.add(new AutoLayer(in.int16(at), in.int16(at + 2), in.int32(at + 4), in.float32(at + 8), in.float32(at + 12), in.float32(at + 16), in.float32(at + 20)));
+		}
+
+		return List.copyOf(layers);
 	}
 
 	private static List<Animation> readAnimations(Bytes in) {
@@ -210,27 +338,84 @@ public final class AnimationSet {
 			grid[axis] = position - cell[axis];
 		}
 
-		Pose bottom = Pose.blend(sample(animations.get(sequence.animation(cell[0], cell[1])), cycle),
-				sample(animations.get(sequence.animation(cell[0] + 1, cell[1])), cycle), grid[0]);
+		Pose bottom = Pose.blend(sample(animations.get(sequence.animation(cell[0], cell[1])), cycle, sequence.delta()),
+				sample(animations.get(sequence.animation(cell[0] + 1, cell[1])), cycle, sequence.delta()), grid[0]);
 
 		if (sequence.groupSize()[1] <= 1) {
 			return bottom;
 		}
 
-		Pose top = Pose.blend(sample(animations.get(sequence.animation(cell[0], cell[1] + 1)), cycle),
-				sample(animations.get(sequence.animation(cell[0] + 1, cell[1] + 1)), cycle), grid[0]);
+		Pose top = Pose.blend(sample(animations.get(sequence.animation(cell[0], cell[1] + 1)), cycle, sequence.delta()),
+				sample(animations.get(sequence.animation(cell[0] + 1, cell[1] + 1)), cycle, sequence.delta()), grid[0]);
 		return Pose.blend(bottom, top, grid[1]);
+	}
+
+	/**
+	 * Поза последовательности вместе с её слоями: на основную позу накладываются слои
+	 * последовательности (у игроков TF2 — матрица прицеливания по {@code body_yaw} и
+	 * {@code body_pitch}) с той же долей проигрывания и теми же параметрами позы.
+	 */
+	public Pose sampleWithLayers(Sequence sequence, float cycle, float[] poseValues) {
+		return accumulate(Pose.rest(bones), sequence, cycle, 1.0F, poseValues);
+	}
+
+	/**
+	 * Накладывает последовательность со всеми её слоями на уже набранную позу, как игра TF2
+	 * накладывает жесты (выстрел, перезарядка) поверх основной анимации: сначала сама
+	 * последовательность с силой {@code weight} по весам костей ({@link Pose#layer}), затем её слои
+	 * ({@link AutoLayer}), каждый тем же способом.
+	 *
+	 * <p>Порядок — по открытому Source SDK 2013 ({@code bone_setup.cpp}, накопление позы); код
+	 * написан заново.
+	 */
+	public Pose accumulate(Pose base, Sequence sequence, float cycle, float weight, float[] poseValues) {
+		return accumulate(base, sequence, cycle, weight, poseValues, 0);
+	}
+
+	private Pose accumulate(Pose base, Sequence sequence, float cycle, float weight, float[] poseValues, int depth) {
+		if (weight <= 0.0F) {
+			return base;
+		}
+
+		Pose pose = Pose.layer(base, sample(sequence, cycle, poseValues), weight, sequence.boneWeights(), sequence.delta(), sequence.post());
+
+		if (depth >= MAX_LAYER_DEPTH) {
+			return pose;
+		}
+
+		for (AutoLayer layer : sequence.layers()) {
+			if ((layer.flags() & LAYER_LOCAL) != 0 || layer.sequence() < 0 || layer.sequence() >= sequences.size()) {
+				continue;
+			}
+
+			float index = cycle;
+
+			if ((layer.flags() & LAYER_POSE) != 0) {
+				index = layer.pose() >= 0 && layer.pose() < poseValues.length ? poseValues[layer.pose()] : 0.0F;
+			}
+
+			if (layer.strength(index) <= 0.0F) {
+				continue;
+			}
+
+			pose = accumulate(pose, sequences.get(layer.sequence()), layer.cycle(cycle), layer.weight(index, weight), poseValues, depth + 1);
+		}
+
+		return pose;
 	}
 
 	/** Поза одной анимации; между кадрами — интерполяция. */
 	public Pose sample(Animation animation, float cycle) {
+		return sample(animation, cycle, false);
+	}
+
+	/** @param delta анимация — поправка, даже если в её описании это не отмечено */
+	private Pose sample(Animation animation, float cycle, boolean delta) {
 		float frame = Math.clamp(cycle, 0.0F, 1.0F) * (animation.frames() - 1);
 		int whole = (int) frame;
 		float fraction = frame - whole;
 		Pose pose = Pose.rest(bones);
-		boolean delta = (animation.flags() & 0x0004) != 0;
-
-		if (delta) {
+		if (delta || (animation.flags() & SEQUENCE_DELTA) != 0) {
 			for (int i = 0; i < bones.size(); i++) {
 				pose.set(i, new float[3], new float[] {0.0F, 0.0F, 0.0F, 1.0F});
 			}
