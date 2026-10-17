@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -36,7 +37,10 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestServerContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
 import net.minecraft.client.CameraType;
+import net.minecraft.client.resources.sounds.EntityBoundSoundInstance;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.client.resources.sounds.SoundInstance;
+import net.minecraft.client.sounds.SoundEventListener;
 import net.minecraft.client.sounds.WeighedSoundEvents;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.repository.PackRepository;
@@ -566,13 +570,25 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 
 			// Выстрел из ракетницы: сервер сообщает клиенту событие, по которому играется жест.
 			// От первого лица свой персонаж не рисуется, и жест остаётся в памяти до проверки.
+			// Звук выстрела привязан к стрелку и движется вместе с ним, а не остаётся в точке выстрела.
 			selectRocketLauncher(context);
+			List<SoundInstance> played = new CopyOnWriteArrayList<>();
+			SoundEventListener listener = (sound, events, range) -> played.add(sound);
+			context.runOnClient(client -> client.getSoundManager().addListener(listener));
 			context.getInput().pressKey(options -> options.keyUse);
 			context.waitTicks(3);
+			context.runOnClient(client -> client.getSoundManager().removeListener(listener));
 			WeaponAction gesture = context.computeOnClient(client -> PlayerAnimations.of(client.player).gesture());
 
 			if (gesture != WeaponAction.FIRE) {
 				throw new AssertionError("событие выстрела не дошло до клиента: " + gesture);
+			}
+
+			SoundInstance shot = played.stream().filter(sound -> sound.getIdentifier().equals(Tf2Mc.id("weapon_rpg.single"))).findFirst()
+					.orElseThrow(() -> new AssertionError("звук выстрела не прозвучал"));
+
+			if (!(shot instanceof EntityBoundSoundInstance)) {
+				throw new AssertionError("звук выстрела не привязан к стрелку: " + shot.getClass().getSimpleName());
 			}
 
 			// Отрисовка от третьего лица, с ракетой в полёте: ошибка в отрисовщике уронила бы клиент.

@@ -201,9 +201,13 @@ public final class RocketLauncher {
 		return ammo != null && ammo.clip() > 0 ? InteractionResult.SUCCESS : InteractionResult.FAIL;
 	}
 
-	/** Звук оружия слышат все вокруг, включая самого игрока. */
+	/**
+	 * Звук оружия слышат все вокруг, включая самого игрока. Звук привязан к игроку и движется
+	 * вместе с ним: звук в неподвижной точке выстрела быстрый игрок оставлял бы позади, и свой
+	 * выстрел слышался бы сбоку или сзади.
+	 */
 	private static void play(ServerPlayer player, SoundEvent sound) {
-		player.level().playSound(null, player.getX(), player.getEyeY(), player.getZ(), sound, SoundSource.PLAYERS, 1.0F, 1.0F);
+		player.level().playSound(null, player, sound, SoundSource.PLAYERS, 1.0F, 1.0F);
 	}
 
 	/** Состояние обоймы игрока; после перезахода восстанавливается по сохранённому боезапасу. */
