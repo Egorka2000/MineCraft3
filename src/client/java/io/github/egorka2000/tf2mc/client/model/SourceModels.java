@@ -38,6 +38,9 @@ public final class SourceModels {
 	/** Оружие Soldier в руках, от третьего лица. */
 	public static final String ROCKET_LAUNCHER = "models/weapons/c_models/c_rocketlauncher/c_rocketlauncher";
 
+	/** Руки Soldier от первого лица; анимации — в подключённом {@code c_soldier_animations.mdl}. */
+	public static final String SOLDIER_ARMS = "models/weapons/c_models/c_soldier_arms";
+
 	/** Ракета Soldier в полёте. */
 	public static final String ROCKET = "models/weapons/w_models/w_rocket";
 
@@ -282,46 +285,51 @@ public final class SourceModels {
 		List<Draw> draws = new ArrayList<>();
 
 		for (SourceModel.Part part : model.parts()) {
-			draws.add(new Draw(texture(part.materials(), resources, textureManager, textures), part.triangles()));
+			draws.add(draw(part.materials(), part.triangles(), resources, textureManager, textures));
 		}
 
 		return List.copyOf(draws);
 	}
 
-	/**
-	 * Текстура материала: первый найденный VMT из списка путей, его {@code $basetexture} (с переходом
-	 * по {@code include} у заплаток), затем VTF. Не нашлась — белая заглушка игры.
-	 */
-	private static Identifier texture(List<String> materials, ResourceManager resources, TextureManager textureManager, List<Identifier> textures) {
-		for (String material : materials) {
-			Optional<String> base = baseTexture(resources, "materials/" + material + ".vmt", 4);
+	/** Текстура материала и есть ли в ней прозрачные места ({@link VmtMaterial#seeThrough}). */
+	private record Material(String texture, boolean seeThrough) {
+	}
 
-			if (base.isEmpty()) {
+	/**
+	 * Треугольники одного материала: первый найденный VMT из списка путей, его {@code $basetexture}
+	 * (с переходом по {@code include} у заплаток), затем VTF. Не нашлась — белая заглушка игры.
+	 */
+	private static Draw draw(List<String> materials, int[] triangles, ResourceManager resources, TextureManager textureManager, List<Identifier> textures) {
+		for (String path : materials) {
+			Optional<Material> material = material(resources, "materials/" + path + ".vmt", 4);
+
+			if (material.isEmpty()) {
 				continue;
 			}
 
-			Optional<byte[]> vtf = read(resources, "materials/" + base.get() + ".vtf");
+			String base = material.get().texture();
+			Optional<byte[]> vtf = read(resources, "materials/" + base + ".vtf");
 
 			if (vtf.isEmpty()) {
-				Tf2Mc.LOGGER.warn("нет текстуры materials/{}.vtf для материала {}", base.get(), material);
+				Tf2Mc.LOGGER.warn("нет текстуры materials/{}.vtf для материала {}", base, path);
 				continue;
 			}
 
 			try {
-				Identifier id = Tf2Mc.id("tf2/" + base.get());
-				textureManager.register(id, new DynamicTexture(id::toString, image(VtfImage.read(vtf.get()))));
+				Identifier id = Tf2Mc.id("tf2/" + base);
+				textureManager.register(id, new DynamicTexture(id::toString, image(VtfImage.read(vtf.get()), material.get().seeThrough())));
 				textures.add(id);
-				return id;
+				return new Draw(id, triangles);
 			} catch (ModelFormatException e) {
-				Tf2Mc.LOGGER.warn("текстура {} не читается: {}", base.get(), e.getMessage());
+				Tf2Mc.LOGGER.warn("текстура {} не читается: {}", base, e.getMessage());
 			}
 		}
 
 		Tf2Mc.LOGGER.warn("нет материала модели среди {}", materials);
-		return Identifier.withDefaultNamespace("textures/misc/white.png");
+		return new Draw(Identifier.withDefaultNamespace("textures/misc/white.png"), triangles);
 	}
 
-	private static Optional<String> baseTexture(ResourceManager resources, String vmtPath, int depth) {
+	private static Optional<Material> material(ResourceManager resources, String vmtPath, int depth) {
 		Optional<byte[]> vmt = read(resources, vmtPath);
 
 		if (vmt.isEmpty() || depth == 0) {
@@ -333,23 +341,29 @@ public final class SourceModels {
 			Optional<String> base = material.colorTexture();
 
 			if (base.isEmpty() && material.include().isPresent()) {
-				return baseTexture(resources, material.include().get(), depth - 1);
+				return material(resources, material.include().get(), depth - 1)
+						.map(included -> new Material(included.texture(), included.seeThrough() || material.seeThrough()));
 			}
 
-			return base;
+			return base.map(texture -> new Material(texture, material.seeThrough()));
 		} catch (ModelFormatException e) {
 			Tf2Mc.LOGGER.warn("материал {} не читается: {}", vmtPath, e.getMessage());
 			return Optional.empty();
 		}
 	}
 
-	private static NativeImage image(VtfImage vtf) {
+	/**
+	 * Текстура для игры. У непрозрачного материала альфа-канал TF2 — маска блеска: она заменяется
+	 * полной непрозрачностью, иначе отрисовка с вырезанием по альфе наделала бы в модели дыр.
+	 */
+	private static NativeImage image(VtfImage vtf, boolean seeThrough) {
 		NativeImage image = new NativeImage(vtf.width(), vtf.height(), false);
 		int[] argb = vtf.argb();
+		int opaque = seeThrough ? 0 : 0xFF000000;
 
 		for (int y = 0; y < vtf.height(); y++) {
 			for (int x = 0; x < vtf.width(); x++) {
-				image.setPixel(x, y, argb[y * vtf.width() + x]);
+				image.setPixel(x, y, argb[y * vtf.width() + x] | opaque);
 			}
 		}
 

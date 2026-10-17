@@ -704,6 +704,17 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			context.takeScreenshot("tf2mc-real-model-reload");
 			context.waitTicks(40);
 
+			// Руки TF2 от первого лица: ожидание, выстрел, перезарядка.
+			context.runOnClient(client -> client.options.setCameraType(CameraType.FIRST_PERSON));
+			context.waitTicks(30);
+			context.takeScreenshot("tf2mc-real-model-first-person");
+			context.getInput().pressKey(options -> options.keyUse);
+			context.waitTicks(3);
+			context.takeScreenshot("tf2mc-real-model-first-person-fire");
+			context.waitTicks(26);
+			context.takeScreenshot("tf2mc-real-model-first-person-reload");
+			context.waitTicks(40);
+
 			// Неподвижная ракета крупно и сбоку: игрок смотрит на юг, ракета повёрнута на восток —
 			// нос должен быть слева.
 			context.runOnClient(client -> client.options.setCameraType(CameraType.FIRST_PERSON));

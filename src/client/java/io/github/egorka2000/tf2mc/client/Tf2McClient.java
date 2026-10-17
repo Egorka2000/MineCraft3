@@ -2,6 +2,7 @@ package io.github.egorka2000.tf2mc.client;
 
 import io.github.egorka2000.tf2mc.client.model.PlayerAnimations;
 import io.github.egorka2000.tf2mc.client.model.RocketRenderer;
+import io.github.egorka2000.tf2mc.client.model.ViewModels;
 import io.github.egorka2000.tf2mc.movement.LocalMovementState;
 import io.github.egorka2000.tf2mc.net.MovementSyncPayload;
 import io.github.egorka2000.tf2mc.net.VelocityImpulsePayload;
@@ -33,6 +34,10 @@ public class Tf2McClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(WeaponActionPayload.TYPE, (payload, context) -> {
 			if (context.client().level != null && context.client().level.getEntity(payload.entityId()) instanceof AbstractClientPlayer player) {
 				PlayerAnimations.onWeaponAction(player, payload.action());
+
+				if (player == context.client().player) {
+					ViewModels.onWeaponAction(payload.action(), player.tickCount / 20.0F);
+				}
 			}
 		});
 
