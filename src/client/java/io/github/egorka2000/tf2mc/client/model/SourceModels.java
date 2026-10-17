@@ -152,8 +152,7 @@ public final class SourceModels {
 		 * кто его рисует.
 		 */
 		public float[] still() {
-			float[] skin = Pose.rest(bones).skinMatrices(bones);
-			float[] posed = skin(skin);
+			float[] posed = skin(Pose.rest(bones).skinMatrices(bones));
 			float[] out = new float[posed.length];
 
 			// skin() кладёт точку Source (x, y, z) в (−y, z, −x); здесь нужно (x, z, −y).
@@ -217,6 +216,32 @@ public final class SourceModels {
 		Optional<AnimationSet> animations = Optional.ofNullable(animations(resources, StudioModel.read(mdl.get()), model));
 		Optional<SkinnedMesh> weaponMesh = animations.isPresent() ? mesh(resources, textureManager, weapon, scale, textures) : Optional.empty();
 		return Optional.of(new PlayerMesh(body.get(), animations, weaponMesh));
+	}
+
+	/** Предмет со своими анимациями внутри того же файла MDL: аптечки, патроны, шкаф пополнения. */
+	public record AnimatedProp(SkinnedMesh mesh, AnimationSet animations) {
+	}
+
+	/**
+	 * Читает предмет вместе с анимациями из его же файла и регистрирует текстуры.
+	 *
+	 * @return пусто, если модели в ресурсах нет (пак не подключён) или она не читается
+	 */
+	public static Optional<AnimatedProp> loadAnimatedProp(ResourceManager resources, TextureManager textureManager, String model, double unitsPerBlock,
+			List<Identifier> textures) {
+		Optional<SkinnedMesh> mesh = loadMesh(resources, textureManager, model, unitsPerBlock, textures);
+		Optional<byte[]> mdl = read(resources, model + ".mdl");
+
+		if (mesh.isEmpty() || mdl.isEmpty()) {
+			return Optional.empty();
+		}
+
+		try {
+			return Optional.of(new AnimatedProp(mesh.get(), AnimationSet.read(mdl.get())));
+		} catch (ModelFormatException e) {
+			Tf2Mc.LOGGER.warn("анимации модели {} не читаются: {}", model, e.getMessage());
+			return Optional.empty();
+		}
 	}
 
 	/**

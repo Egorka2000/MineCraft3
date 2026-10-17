@@ -1,6 +1,9 @@
 package io.github.egorka2000.tf2mc.client;
 
+import io.github.egorka2000.tf2mc.block.Tf2Blocks;
 import io.github.egorka2000.tf2mc.client.model.PlayerAnimations;
+import io.github.egorka2000.tf2mc.client.model.PropModels;
+import io.github.egorka2000.tf2mc.client.model.PropRenderer;
 import io.github.egorka2000.tf2mc.client.model.RocketRenderer;
 import io.github.egorka2000.tf2mc.client.model.ViewModels;
 import io.github.egorka2000.tf2mc.movement.LocalMovementState;
@@ -15,6 +18,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 
 import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraft.client.renderer.entity.EntityRenderers;
 
 public class Tf2McClient implements ClientModInitializer {
@@ -49,5 +53,8 @@ public class Tf2McClient implements ClientModInitializer {
 		MemoryCheck.register();
 		// Ракета рисуется моделью TF2 из расширительного пака; без пака она невидима.
 		EntityRenderers.register(Tf2Weapons.ROCKET, RocketRenderer::new);
+		// Аптечки, патроны и шкафы пополнения — моделями TF2 из пака, если они там есть.
+		BlockEntityRenderers.register(Tf2Blocks.PROP, PropRenderer::new);
+		PropModels.register();
 	}
 }
