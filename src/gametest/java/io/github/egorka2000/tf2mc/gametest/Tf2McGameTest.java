@@ -538,6 +538,8 @@ public class Tf2McGameTest {
 			player.setHealth(50.0f);
 			player.setRemainingFireTicks(100);
 			run(server.createCommandSourceStack(), "ammo set 0 " + name);
+			// Ракетница только что выдана: сначала она 0,5 с достаётся.
+			tickLauncher(server, 10);
 			check(RocketLauncher.fire(player), "выстрел перед пополнением не прошёл");
 			standAt(helper, player, new Vec3(0.5, 1.0, 0.5));
 			check(player.getHealth() == 50.0f, "шкаф сработал издалека");
@@ -890,6 +892,12 @@ public class Tf2McGameTest {
 			run(server.createCommandSourceStack(), "class soldier " + name);
 			check(player.getInventory().countItem(RocketLauncher.ITEM) == 1, "ракетниц в инвентаре: " + player.getInventory().countItem(RocketLauncher.ITEM));
 
+			// Ракетницу только что взяли в руку: 10 тиков (0,5 с) она достаётся и не стреляет.
+			check(!RocketLauncher.fire(player), "выстрел прошёл, пока ракетница доставалась");
+			tickLauncher(server, 9);
+			check(!RocketLauncher.fire(player), "выстрел прошёл за тик до конца доставания");
+			tickLauncher(server, 1);
+
 			// Выстрел тратит ракету; до конца паузы в 16 тиков второй выстрел невозможен.
 			check(RocketLauncher.fire(player), "первый выстрел не прошёл");
 			checkAmmo(player, 3, 20, "после первого выстрела");
@@ -913,12 +921,14 @@ public class Tf2McGameTest {
 			tickLauncher(server, 1);
 			checkAmmo(player, 1, 19, "после первой ракеты");
 
-			// Ракетница убрана из рук: перезарядка стоит. Снова в руках — начинается заново, с 18 тиков.
+			// Ракетница убрана из рук: перезарядка стоит. Снова в руках — сначала 10 тиков достаётся, потом перезарядка начинается заново, с 18 тиков.
 			int launcherSlot = player.getInventory().getSelectedSlot();
 			player.getInventory().setSelectedSlot((launcherSlot + 1) % 9);
 			tickLauncher(server, 100);
 			checkAmmo(player, 1, 19, "перезарядка шла с ракетницей не в руках");
 			player.getInventory().setSelectedSlot(launcherSlot);
+			tickLauncher(server, 10);
+			checkAmmo(player, 1, 19, "ракета заряжалась, пока ракетница доставалась");
 			tickLauncher(server, 17);
 			checkAmmo(player, 1, 19, "за тик до ракеты после возвращения в руки");
 			tickLauncher(server, 1);
