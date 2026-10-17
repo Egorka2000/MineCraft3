@@ -12,6 +12,7 @@ import io.github.egorka2000.tf2mc.sourcemodel.Pose;
 import io.github.egorka2000.tf2mc.team.Teams;
 import io.github.egorka2000.tf2mc.team.TfTeam;
 import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
+import io.github.egorka2000.tf2mc.weapon.WeaponAction;
 
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -71,9 +72,10 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 		classState.moveLeft = (float) Math.clamp((Math.cos(yaw) * dx + Math.sin(yaw) * dz) / maxPerTick, -1.0, 1.0);
 		boolean moving = Math.hypot(classState.moveForward, classState.moveLeft) > MOVING;
 
+		boolean inAir = !player.onGround() && !player.isInWater();
 		String sequence;
 
-		if (!player.onGround() && !player.isInWater()) {
+		if (inAir) {
 			sequence = "jump_float_PRIMARY";
 		} else if (state.isCrouching) {
 			sequence = moving ? "crouch_walk_PRIMARY" : "crouch_PRIMARY";
@@ -83,14 +85,89 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 
 		classState.sequence = sequence;
 		classState.holdingWeapon = player.getMainHandItem().is(RocketLauncher.ITEM);
-		classState.cycle = mesh.animations().flatMap(set -> set.sequence(sequence).map(seq -> cycle(set, seq, state.ageInTicks))).orElse(0.0F);
+		classState.previousSequence = null;
+		classState.transition = 1.0F;
+		classState.gestureSequence = null;
+
+		if (mesh.animations().isEmpty()) {
+			classState.cycle = 0.0F;
+			return;
+		}
+
+		AnimationSet set = mesh.animations().get();
+		PlayerAnimations memory = PlayerAnimations.of(player);
+		memory.play(sequence, state.ageInTicks);
+		classState.cycle = set.sequence(sequence).map(seq -> cycle(set, seq, state.ageInTicks)).orElse(0.0F);
+		transition(set, memory, classState);
+		gesture(set, memory, classState, inAir);
 	}
 
-	/** Доля проигрывания по времени: длительность — по первой анимации последовательности. */
-	private static float cycle(AnimationSet set, AnimationSet.Sequence sequence, float ageInTicks) {
+	/**
+	 * Плавный переход с прежней последовательности за время перехода новой ({@code fadeIn}, у
+	 * игроков TF2 0,2 с): прежняя продолжает играть и уступает новой.
+	 */
+	private static void transition(AnimationSet set, PlayerAnimations memory, ClassRenderState state) {
+		Optional<AnimationSet.Sequence> current = set.sequence(state.sequence);
+		Optional<AnimationSet.Sequence> previous = memory.previous() == null ? Optional.empty() : set.sequence(memory.previous());
+
+		if (current.isEmpty() || previous.isEmpty() || current.get().fadeIn() <= 0.0F) {
+			return;
+		}
+
+		float t = memory.sinceSwitch(state.ageInTicks) / 20.0F / current.get().fadeIn();
+
+		if (t < 1.0F) {
+			state.previousSequence = previous.get().name();
+			state.previousCycle = cycle(set, previous.get(), state.ageInTicks);
+			state.transition = Math.max(0.0F, t);
+		}
+	}
+
+	/**
+	 * Жест оружия по событию с сервера. Выстрел и конец перезарядки играются один раз; начало
+	 * перезарядки держит последний кадр, а повтор идёт по кругу, пока не придёт следующее событие.
+	 * Убранное оружие жест прерывает.
+	 */
+	private static void gesture(AnimationSet set, PlayerAnimations memory, ClassRenderState state, boolean inAir) {
+		WeaponAction action = memory.gesture();
+
+		if (action == null) {
+			return;
+		}
+
+		if (!state.holdingWeapon) {
+			memory.stopGesture();
+			return;
+		}
+
+		Optional<AnimationSet.Sequence> sequence = set.sequence(PlayerAnimations.gestureName(action, state.isCrouching, inAir));
+
+		if (sequence.isEmpty()) {
+			memory.stopGesture();
+			return;
+		}
+
+		float position = memory.sinceGesture(state.ageInTicks) / 20.0F / duration(set, sequence.get());
+		boolean once = action == WeaponAction.FIRE || action == WeaponAction.RELOAD_END;
+
+		if (once && position >= 1.0F) {
+			memory.stopGesture();
+			return;
+		}
+
+		state.gestureSequence = sequence.get().name();
+		state.gestureCycle = sequence.get().looping() ? position - (float) Math.floor(position) : Math.min(position, 1.0F);
+	}
+
+	/** Длительность последовательности, секунды: по первой анимации. */
+	private static float duration(AnimationSet set, AnimationSet.Sequence sequence) {
 		AnimationSet.Animation animation = set.animations().get(sequence.animation(0, 0));
-		float seconds = Math.max(1, animation.frames() - 1) / Math.max(1.0F, animation.fps());
-		float position = ageInTicks / 20.0F / seconds;
+		return Math.max(1, animation.frames() - 1) / Math.max(1.0F, animation.fps());
+	}
+
+	/** Доля проигрывания по времени жизни игрока. */
+	private static float cycle(AnimationSet set, AnimationSet.Sequence sequence, float ageInTicks) {
+		float position = ageInTicks / 20.0F / duration(set, sequence);
 		return sequence.looping() ? position - (float) Math.floor(position) : Math.min(position, 1.0F);
 	}
 
@@ -153,7 +230,25 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 		// положительный, как body_yaw, а наклон вниз положительный — обратно body_pitch.
 		setParameter(set, values, "body_yaw", state.yRot);
 		setParameter(set, values, "body_pitch", -state.xRot);
-		return set.sampleWithLayers(sequence.get(), state.cycle, values);
+		Pose pose = set.sampleWithLayers(sequence.get(), state.cycle, values);
+
+		if (state.previousSequence != null) {
+			Optional<AnimationSet.Sequence> previous = set.sequence(state.previousSequence);
+
+			if (previous.isPresent()) {
+				pose = Pose.blend(set.sampleWithLayers(previous.get(), state.previousCycle, values), pose, state.transition);
+			}
+		}
+
+		if (state.gestureSequence != null) {
+			Optional<AnimationSet.Sequence> gesture = set.sequence(state.gestureSequence);
+
+			if (gesture.isPresent()) {
+				pose = set.accumulate(pose, gesture.get(), state.gestureCycle, 1.0F, values);
+			}
+		}
+
+		return pose;
 	}
 
 	private static void setParameter(AnimationSet set, float[] values, String name, float value) {

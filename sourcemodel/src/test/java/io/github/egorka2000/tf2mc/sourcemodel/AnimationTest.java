@@ -179,15 +179,49 @@ class AnimationTest {
 
 	@Test
 	void layerWeightRisesAndFalls() {
-		AnimationSet.AutoLayer always = new AnimationSet.AutoLayer(0, 0, 0, 0, 0, 0);
-		AnimationSet.AutoLayer ramp = new AnimationSet.AutoLayer(0, 0, 0.2F, 0.4F, 0.6F, 0.8F);
+		AnimationSet.AutoLayer always = new AnimationSet.AutoLayer(0, -1, 0, 0, 0, 0, 0);
+		AnimationSet.AutoLayer ramp = new AnimationSet.AutoLayer(0, -1, 0, 0.2F, 0.4F, 0.6F, 0.8F);
 
-		assertEquals(1.0F, always.weight(0.7F), EPSILON);
-		assertEquals(0.0F, ramp.weight(0.1F), EPSILON);
-		assertEquals(0.5F, ramp.weight(0.3F), EPSILON);
-		assertEquals(1.0F, ramp.weight(0.5F), EPSILON);
-		assertEquals(0.5F, ramp.weight(0.7F), EPSILON);
-		assertEquals(0.0F, ramp.weight(0.9F), EPSILON);
+		assertEquals(0.6F, always.weight(0.7F, 0.6F), EPSILON);
+		assertEquals(0.7F, always.cycle(0.7F), EPSILON);
+		assertEquals(0.0F, ramp.strength(0.1F), EPSILON);
+		assertEquals(0.5F, ramp.strength(0.3F), EPSILON);
+		assertEquals(1.0F, ramp.strength(0.5F), EPSILON);
+		assertEquals(0.5F, ramp.strength(0.7F), EPSILON);
+		assertEquals(0.0F, ramp.strength(0.9F), EPSILON);
+		// Сила слоя умножается на силу основной последовательности, время идёт по отрезку слоя.
+		assertEquals(0.25F, ramp.weight(0.3F, 0.5F), EPSILON);
+		assertEquals(0.5F, ramp.cycle(0.5F), EPSILON);
+	}
+
+	@Test
+	void layerFlagsShapeWeight() {
+		AnimationSet.AutoLayer spline = new AnimationSet.AutoLayer(0, -1, AnimationSet.LAYER_SPLINE, 0, 1, 1, 1);
+		AnimationSet.AutoLayer noblend = new AnimationSet.AutoLayer(0, -1, AnimationSet.LAYER_NOBLEND, 0, 0, 1, 2);
+		AnimationSet.AutoLayer xfade = new AnimationSet.AutoLayer(0, -1, AnimationSet.LAYER_XFADE, 0, 0, 0.5F, 1);
+
+		// Кривая 3s² − 2s³: в четверти пути 0,15625, посередине 0,5.
+		assertEquals(0.15625F, spline.strength(0.25F), EPSILON);
+		assertEquals(0.5F, spline.strength(0.5F), EPSILON);
+		assertEquals(1.0F, noblend.weight(0.5F, 0.3F), EPSILON);
+		// На спаде: s = 0,5 при силе 0,5 — 0,25 / (0,5 + 0,25).
+		assertEquals(1.0F / 3.0F, xfade.weight(0.75F, 0.5F), EPSILON);
+	}
+
+	@Test
+	void boneWeightsLimitLayer() {
+		Pose base = new Pose(2);
+		base.set(0, new float[] {0, 0, 0}, new float[] {0, 0, 0, 1});
+		base.set(1, new float[] {0, 0, 0}, new float[] {0, 0, 0, 1});
+		Pose over = new Pose(2);
+		over.set(0, new float[] {4, 0, 0}, Pose.eulerToQuaternion(0, 0, 1));
+		over.set(1, new float[] {4, 0, 0}, Pose.eulerToQuaternion(0, 0, 1));
+		Pose out = Pose.layer(base, over, 1.0F, new float[] {0.0F, 0.5F}, false, false);
+
+		// Кость с весом 0 не тронута, с весом 0,5 — на полпути.
+		assertArrayEquals(new float[] {0, 0, 0, 2, 0, 0}, out.positions(), EPSILON);
+		assertArrayEquals(new float[] {0, 0, 0, 1}, java.util.Arrays.copyOfRange(out.rotations(), 0, 4), EPSILON);
+		assertArrayEquals(Pose.eulerToQuaternion(0, 0, 0.5F), java.util.Arrays.copyOfRange(out.rotations(), 4, 8), EPSILON);
 	}
 
 	@Test

@@ -8,6 +8,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
+import io.github.egorka2000.tf2mc.net.Tf2Networking;
 import io.netty.buffer.ByteBuf;
 
 import net.fabricmc.fabric.api.attachment.v1.AttachmentRegistry;
@@ -125,6 +126,7 @@ public final class RocketLauncher {
 		store(player, magazine.fire(RULES));
 		RocketEntity.fire(player.level(), player);
 		play(player, Tf2Sounds.ROCKET_LAUNCHER_SHOOT);
+		Tf2Networking.weaponAction(player, WeaponAction.FIRE);
 		return true;
 	}
 
@@ -172,6 +174,12 @@ public final class RocketLauncher {
 				// Обойма выросла: в неё только что зарядили ракету.
 				if (next.clip() > magazine.clip()) {
 					play(player, Tf2Sounds.ROCKET_LAUNCHER_RELOAD);
+				}
+
+				WeaponAction reload = WeaponAction.reload(magazine, next);
+
+				if (reload != null) {
+					Tf2Networking.weaponAction(player, reload);
 				}
 			}
 		}

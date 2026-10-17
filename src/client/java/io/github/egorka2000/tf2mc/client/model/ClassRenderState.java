@@ -24,4 +24,19 @@ public final class ClassRenderState extends AvatarRenderState {
 
 	/** В основной руке ракетница: её модель рисуется в руках. */
 	public boolean holdingWeapon;
+
+	/** Последовательность, с которой идёт плавный переход; {@code null} — перехода нет. */
+	public String previousSequence;
+
+	/** Доля проигрывания прежней последовательности. */
+	public float previousCycle;
+
+	/** Ход перехода: 0 — ещё прежняя последовательность, 1 — уже новая. */
+	public float transition = 1.0F;
+
+	/** Жест оружия поверх основной анимации, например {@code AttackStand_PRIMARY}; {@code null} — жеста нет. */
+	public String gestureSequence;
+
+	/** Доля проигрывания жеста. */
+	public float gestureCycle;
 }

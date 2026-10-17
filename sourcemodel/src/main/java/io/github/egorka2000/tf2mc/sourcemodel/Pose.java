@@ -72,21 +72,58 @@ public final class Pose {
 	 * поворот поправки применяется после основного: основной · поправка; иначе поправка · основной.
 	 */
 	public static Pose addDelta(Pose base, Pose delta, float weight, boolean post) {
+		return layer(base, delta, weight, null, true, post);
+	}
+
+	/**
+	 * Накладывает позу последовательности на уже набранную позу, как игра TF2: каждая кость — со
+	 * своей силой {@code weight × boneWeights[кость]}. Поправка (дельта) прибавляется
+	 * ({@link #addDelta}), обычная поза смешивается ({@link #blend}). Кости с силой 0 не меняются.
+	 *
+	 * <p>Правило — по открытому Source SDK 2013 ({@code bone_setup.cpp}, смешивание костей);
+	 * код написан заново.
+	 *
+	 * @param boneWeights веса костей из последовательности; {@code null} — все 1
+	 */
+	public static Pose layer(Pose base, Pose over, float weight, float[] boneWeights, boolean delta, boolean post) {
 		Pose out = new Pose(base.bones());
 		float[] identity = {0, 0, 0, 1};
 		float[] scaled = new float[4];
-
-		for (int i = 0; i < base.positions.length; i++) {
-			out.positions[i] = base.positions[i] + delta.positions[i] * weight;
-		}
+		float[] q = new float[4];
+		float s = Math.clamp(weight, 0.0F, 1.0F);
 
 		for (int bone = 0; bone < base.bones(); bone++) {
-			float[] d = {delta.rotations[bone * 4], delta.rotations[bone * 4 + 1], delta.rotations[bone * 4 + 2], delta.rotations[bone * 4 + 3]};
-			slerp(identity, d, 0, weight, scaled);
-			float[] b = {base.rotations[bone * 4], base.rotations[bone * 4 + 1], base.rotations[bone * 4 + 2], base.rotations[bone * 4 + 3]};
-			float[] result = post ? multiply(b, scaled) : multiply(scaled, b);
-			normalize(result);
-			System.arraycopy(result, 0, out.rotations, bone * 4, 4);
+			float w = s * (boneWeights == null || bone >= boneWeights.length ? 1.0F : boneWeights[bone]);
+			int p = bone * 3;
+			int r = bone * 4;
+
+			if (w <= 0.0F) {
+				System.arraycopy(base.positions, p, out.positions, p, 3);
+				System.arraycopy(base.rotations, r, out.rotations, r, 4);
+				continue;
+			}
+
+			if (delta) {
+				for (int i = 0; i < 3; i++) {
+					out.positions[p + i] = base.positions[p + i] + over.positions[p + i] * w;
+				}
+
+				float[] d = {over.rotations[r], over.rotations[r + 1], over.rotations[r + 2], over.rotations[r + 3]};
+				slerp(identity, d, 0, Math.min(w, 1.0F), scaled);
+				float[] b = {base.rotations[r], base.rotations[r + 1], base.rotations[r + 2], base.rotations[r + 3]};
+				float[] result = post ? multiply(b, scaled) : multiply(scaled, b);
+				normalize(result);
+				System.arraycopy(result, 0, out.rotations, r, 4);
+			} else {
+				float t = Math.min(w, 1.0F);
+
+				for (int i = 0; i < 3; i++) {
+					out.positions[p + i] = base.positions[p + i] + (over.positions[p + i] - base.positions[p + i]) * t;
+				}
+
+				slerp(base.rotations, over.rotations, r, t, q);
+				System.arraycopy(q, 0, out.rotations, r, 4);
+			}
 		}
 
 		return out;

@@ -21,9 +21,12 @@ import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.client.HealthHud;
 import io.github.egorka2000.tf2mc.client.WavSounds;
 import io.github.egorka2000.tf2mc.client.model.ClassModels;
+import io.github.egorka2000.tf2mc.client.model.PlayerAnimations;
 import io.github.egorka2000.tf2mc.config.ConfigManager;
 import io.github.egorka2000.tf2mc.sourcemodel.TinyModel;
 import io.github.egorka2000.tf2mc.sourcemodel.TinyTexture;
+import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
+import io.github.egorka2000.tf2mc.weapon.WeaponAction;
 
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
@@ -512,6 +515,9 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		});
 		context.waitFor(client -> reload.get().isDone());
 		reload.get().join();
+		// Пока видна заставка загрузки, игра стоит на паузе и встроенный сервер не обновляется:
+		// выданные вещи и события оружия до клиента бы не дошли.
+		context.waitFor(client -> client.gui.overlay() == null);
 	}
 
 	/**
@@ -558,6 +564,17 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 				throw new AssertionError("самодельная модель ракеты из пака не подключилась");
 			}
 
+			// Выстрел из ракетницы: сервер сообщает клиенту событие, по которому играется жест.
+			// От первого лица свой персонаж не рисуется, и жест остаётся в памяти до проверки.
+			selectRocketLauncher(context);
+			context.getInput().pressKey(options -> options.keyUse);
+			context.waitTicks(3);
+			WeaponAction gesture = context.computeOnClient(client -> PlayerAnimations.of(client.player).gesture());
+
+			if (gesture != WeaponAction.FIRE) {
+				throw new AssertionError("событие выстрела не дошло до клиента: " + gesture);
+			}
+
 			// Отрисовка от третьего лица, с ракетой в полёте: ошибка в отрисовщике уронила бы клиент.
 			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_BACK));
 			server.runCommand("execute as @a run tf2 rocket");
@@ -577,6 +594,26 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		if (context.computeOnClient(client -> ClassModels.isSourceModel() || ClassModels.rocket().isPresent())) {
 			throw new AssertionError("модель TF2 осталась после выключения пака");
 		}
+	}
+
+	/** Берёт в руку ракетницу клавишей её ячейки на панели быстрого доступа. */
+	private static void selectRocketLauncher(ClientGameTestContext context) {
+		int slot = context.computeOnClient(client -> {
+			for (int i = 0; i < 9; i++) {
+				if (client.player.getInventory().getItem(i).is(RocketLauncher.ITEM)) {
+					return i;
+				}
+			}
+
+			return -1;
+		});
+
+		if (slot < 0) {
+			throw new AssertionError("ракетницы нет на панели быстрого доступа");
+		}
+
+		context.getInput().pressKey(options -> options.keyHotbarSlots[slot]);
+		context.waitTicks(2);
 	}
 
 	private static void writeEntry(ZipOutputStream out, String name, byte[] data) throws IOException {
@@ -654,6 +691,17 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			context.waitTick();
 			context.takeScreenshot("tf2mc-real-model-rocket");
 			context.runOnClient(client -> client.player.setXRot(0.0F));
+			context.waitTicks(40);
+
+			// Жесты оружия: выстрел, затем перезарядка (начинается через 0,8 с после выстрела).
+			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_FRONT));
+			context.waitTicks(5);
+			selectRocketLauncher(context);
+			context.getInput().pressKey(options -> options.keyUse);
+			context.waitTicks(4);
+			context.takeScreenshot("tf2mc-real-model-fire");
+			context.waitTicks(26);
+			context.takeScreenshot("tf2mc-real-model-reload");
 			context.waitTicks(40);
 
 			// Неподвижная ракета крупно и сбоку: игрок смотрит на юг, ракета повёрнута на восток —
