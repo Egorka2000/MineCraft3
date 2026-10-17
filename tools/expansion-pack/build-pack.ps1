@@ -29,7 +29,7 @@ $sources = [ordered]@{
     "tf2_misc_dir.vpk" = @(
         # Персонажи и их анимации, руки от первого лица.
         "^models/player/($classes)(_animations)?\.",
-        "^models/weapons/c_models/c_($classes)_arms\.",
+        "^models/weapons/c_models/c_($classes)_(arms|animations)\.",
         # Оружие, снаряды, постройки инженера, аптечки и патроны, флаг и контрольная точка.
         "^models/weapons/c_models/c_($weapons)(/|\.)",
         "^models/weapons/w_models/w_($projectiles)\.",
