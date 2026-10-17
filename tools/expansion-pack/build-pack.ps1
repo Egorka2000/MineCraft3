@@ -16,48 +16,70 @@ $ErrorActionPreference = "Stop"
 
 $classes = "scout|soldier|pyro|demo|heavy|engineer|medic|sniper|spy"
 $voices = "scout|soldier|pyro|demoman|heavy|engineer|medic|sniper|spy"
-# Стоковое оружие девяти классов.
+# Стоковое оружие девяти классов, включая часы Spy.
 $weapons = "rocketlauncher|shotgun|shovel|scattergun|pistol|bat|flamethrower|fireaxe_pyro|grenadelauncher|" +
-    "stickybomb_launcher|bottle|minigun|wrench|pda_engineer|builder|toolbox|medigun|syringegun|bonesaw|" +
-    "sniperrifle|smg|machete|revolver|knife|sapper"
-$projectiles = "rocket|grenade_grenadelauncher|stickybomb|syringe_proj"
-$buildings = "sentry1|sentry2|sentry3|sentry_shield|dispenser|teleporter|toolbox"
-$pickups = "(ammopack|medkit)_(small|medium|large)"
+    "stickybomb_launcher|bottle|minigun|wrench|pda_engineer|builder|toolbox|medigun|syringegun|bonesaw|fireaxe|" +
+    "sniperrifle|smg|machete|revolver|knife|sapper|spy_watch"
+
+# Пак собирается «на вырост»: всё, что может понадобиться моду для девяти классов со стоковым
+# оружием, построек, режимов и HUD, чтобы не пересобирать его с каждой новой механикой.
+# Не берутся предметы мастерской, косметика и карты: это гигабайты, которые мод не использует.
+
+# Материалы (VMT лежат в tf2_misc, текстуры VTF — в tf2_textures).
+$materials = @(
+    # Персонажи, их обломки, руки; без косметики (items).
+    "^materials/models/player/(?!items/)",
+    "^materials/models/gibs/",
+    # Освещение моделей TF2: мягкие тени персонажей и оружия.
+    "^materials/models/lightwarps/",
+    # Стоковое оружие; старые модели v_ и w_ целиком — они небольшие.
+    "^materials/models/weapons/c_items/c_($weapons)[a-z0-9_]*\.",
+    "^materials/models/weapons/c_models/c_($weapons)/",
+    "^materials/models/weapons/[vw]_",
+    # Постройки, аптечки и патроны, флаг, реквизит режимов (шкаф, точка захвата, вагонетка), эффекты моделей.
+    "^materials/models/buildables/",
+    "^materials/models/items/",
+    "^materials/models/flag/",
+    "^materials/models/props_gameplay/",
+    "^materials/models/props_trainyard/",
+    "^materials/models/effects/",
+    # Частицы, спрайты, следы на стенах; эффекты без предметов мастерской.
+    "^materials/effects/(?!workshop/)",
+    "^materials/particle/",
+    "^materials/particles/",
+    "^materials/sprites/",
+    "^materials/decals/",
+    # HUD: значки, убийства, прицелы, корень интерфейса.
+    "^materials/hud/",
+    "^materials/vgui/[^/]+$",
+    "^materials/vgui/crosshairs/"
+)
 
 # Архив TF2 -> какие файлы из него нужны.
 $sources = [ordered]@{
     "tf2_misc_dir.vpk" = @(
-        # Персонажи и их анимации, руки от первого лица.
+        # Персонажи, их анимации и обломки; руки от первого лица и их анимации.
         "^models/player/($classes)(_animations)?\.",
+        "^models/player/gibs/",
         "^models/weapons/c_models/c_($classes)_(arms|animations)\.",
-        # Оружие, снаряды, постройки инженера, аптечки и патроны, флаг и контрольная точка.
+        # Стоковое оружие; все снаряды и старые модели оружия.
         "^models/weapons/c_models/c_($weapons)(/|\.)",
-        "^models/weapons/w_models/w_($projectiles)\.",
-        "^models/buildables/($buildings)[a-z0-9_]*\.",
-        "^models/items/$pickups\.",
-        "^models/flag/briefcase\.",
-        "^models/props_gameplay/cap_point_base\.",
-        # Описания материалов для всего перечисленного.
-        "^materials/models/player/($classes|hvyweapon|shared)/",
-        "^materials/models/weapons/c_items/c_($weapons)[a-z0-9_]*\.",
-        "^materials/models/weapons/c_models/c_($weapons)/",
-        "^materials/models/weapons/w_($projectiles)",
-        "^materials/models/buildables/",
-        "^materials/models/items/(ammopack|medkit)",
-        "^materials/models/flag/",
-        # Таблицы: какое событие какой звук играет, меню голосовых команд.
-        "^scripts/voicecommands\.txt$",
-        "^scripts/game_sounds[a-z0-9_]*\.txt$"
-    )
-    "tf2_textures_dir.vpk" = @(
-        "^materials/models/player/($classes|hvyweapon|shared)/",
-        "^materials/models/weapons/c_items/c_($weapons)[a-z0-9_]*\.",
-        "^materials/models/weapons/c_models/c_($weapons)/",
-        "^materials/models/weapons/w_($projectiles)",
-        "^materials/models/buildables/",
-        "^materials/models/items/(ammopack|medkit)",
-        "^materials/models/flag/"
-    )
+        "^models/weapons/[vw]_models/",
+        "^models/weapons/shells/",
+        # Постройки инженера, аптечки и патроны, флаг, реквизит режимов, эффекты.
+        "^models/buildables/",
+        "^models/items/",
+        "^models/flag/",
+        "^models/props_gameplay/",
+        "^models/props_trainyard/bomb_cart",
+        "^models/effects/",
+        # Системы частиц: взрывы, огонь, лучи лечения, следы ракет.
+        "^particles/",
+        # Таблицы TF2: звуки, голосовые команды, оружие, раскладки HUD.
+        "^scripts/[^/]+\.txt$",
+        "^resource/(?!ui/quests/)"
+    ) + $materials
+    "tf2_textures_dir.vpk" = $materials
     "tf2_sound_misc_dir.vpk" = @(
         "^sound/weapons/",
         "^sound/player/",
@@ -122,6 +144,14 @@ try {
     }
 } finally {
     Pop-Location
+}
+
+# Шрифты TF2 для HUD лежат в папке игры отдельными файлами, не в архивах.
+$fonts = @(Get-ChildItem (Join-Path $Tf2Dir "tf\resource") -Filter "*.ttf" -File -ErrorAction SilentlyContinue)
+if ($fonts.Count -gt 0) {
+    New-Item -ItemType Directory -Force (Join-Path $OutDir "resource") | Out-Null
+    $fonts | Copy-Item -Destination (Join-Path $OutDir "resource")
+    $total += $fonts.Count
 }
 
 $done = @(Get-ChildItem -Recurse -File $OutDir)
