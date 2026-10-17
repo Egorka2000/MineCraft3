@@ -1,11 +1,13 @@
 package io.github.egorka2000.tf2mc;
 
 import io.github.egorka2000.tf2mc.block.Tf2Blocks;
+import io.github.egorka2000.tf2mc.clazz.PendingChoice;
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
 import io.github.egorka2000.tf2mc.command.Tf2Commands;
 import io.github.egorka2000.tf2mc.config.ConfigManager;
 import io.github.egorka2000.tf2mc.net.Tf2Networking;
 import io.github.egorka2000.tf2mc.team.Teams;
+import io.github.egorka2000.tf2mc.team.TeamSpawns;
 import io.github.egorka2000.tf2mc.weapon.Tf2Weapons;
 
 import net.fabricmc.api.ModInitializer;
@@ -31,8 +33,12 @@ public class Tf2Mc implements ModInitializer {
 		config = new ConfigManager(FabricLoader.getInstance().getConfigDir().resolve(MOD_ID + ".json"));
 		logLoadResult(config.load());
 		Tf2Networking.register();
+		// Типы данных мода (класс, команда, точки возрождения, боезапас) регистрируются здесь, до
+		// загрузки мира: данные незарегистрированного типа Fabric при загрузке выбрасывает.
 		PlayerClasses.register();
+		PendingChoice.register();
 		Teams.register();
+		TeamSpawns.register();
 		Tf2Weapons.register();
 		Tf2Blocks.register();
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> Tf2Commands.register(dispatcher));
