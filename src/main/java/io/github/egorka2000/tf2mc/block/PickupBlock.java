@@ -14,6 +14,8 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
@@ -29,7 +31,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  * максимума здоровья класса или запаса оружия. Аптечка не лечит выше максимума и тушит огонь;
  * патроны обойму не пополняют.
  */
-public final class PickupBlock extends Block {
+public final class PickupBlock extends Block implements EntityBlock {
 	/** Лежит ли сейчас на подставке аптечка или патроны. */
 	public static final BooleanProperty AVAILABLE = BlockStateProperties.ENABLED;
 
@@ -71,6 +73,12 @@ public final class PickupBlock extends Block {
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
 		builder.add(AVAILABLE);
+	}
+
+	/** Сущность нужна клиенту, чтобы рисовать аптечку или патроны моделью TF2 из пака. */
+	@Override
+	public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
+		return new PropBlockEntity(pos, state);
 	}
 
 	@Override

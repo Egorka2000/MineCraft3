@@ -72,16 +72,14 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 		classState.moveLeft = (float) Math.clamp((Math.cos(yaw) * dx + Math.sin(yaw) * dz) / maxPerTick, -1.0, 1.0);
 		boolean moving = Math.hypot(classState.moveForward, classState.moveLeft) > MOVING;
 
-		boolean inAir = !player.onGround() && !player.isInWater();
-		String sequence;
-
-		if (inAir) {
-			sequence = "jump_float_PRIMARY";
-		} else if (state.isCrouching) {
-			sequence = moving ? "crouch_walk_PRIMARY" : "crouch_PRIMARY";
-		} else {
-			sequence = moving ? "run_PRIMARY" : "stand_PRIMARY";
-		}
+		PlayerAnimations.Posture posture = posture(player, state.isCrouching);
+		String sequence = switch (posture) {
+			// Плавание смешивается по направлению, как бег; без движения — покачивание на месте.
+			case SWIM -> "swim_PRIMARY";
+			case AIR -> "jump_float_PRIMARY";
+			case CROUCH -> moving ? "crouch_walk_PRIMARY" : "crouch_PRIMARY";
+			case STAND -> moving ? "run_PRIMARY" : "stand_PRIMARY";
+		};
 
 		classState.sequence = sequence;
 		classState.holdingWeapon = player.getMainHandItem().is(RocketLauncher.ITEM);
@@ -99,7 +97,23 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 		memory.play(sequence, state.ageInTicks);
 		classState.cycle = set.sequence(sequence).map(seq -> cycle(set, seq, state.ageInTicks)).orElse(0.0F);
 		transition(set, memory, classState);
-		gesture(set, memory, classState, inAir);
+		gesture(set, memory, classState, posture);
+	}
+
+	/**
+	 * Положение тела. Плывёт игрок в воде, который не стоит на дне или скрылся под водой с
+	 * головой; стоя по колено в воде он идёт, как по суше.
+	 */
+	private static PlayerAnimations.Posture posture(AbstractClientPlayer player, boolean crouching) {
+		if (player.isInWater() && (!player.onGround() || player.isUnderWater())) {
+			return PlayerAnimations.Posture.SWIM;
+		}
+
+		if (!player.onGround() && !player.isInWater()) {
+			return PlayerAnimations.Posture.AIR;
+		}
+
+		return crouching ? PlayerAnimations.Posture.CROUCH : PlayerAnimations.Posture.STAND;
 	}
 
 	/**
@@ -128,7 +142,7 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 	 * перезарядки держит последний кадр, а повтор идёт по кругу, пока не придёт следующее событие.
 	 * Убранное оружие жест прерывает.
 	 */
-	private static void gesture(AnimationSet set, PlayerAnimations memory, ClassRenderState state, boolean inAir) {
+	private static void gesture(AnimationSet set, PlayerAnimations memory, ClassRenderState state, PlayerAnimations.Posture posture) {
 		WeaponAction action = memory.gesture();
 
 		if (action == null) {
@@ -140,7 +154,8 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 			return;
 		}
 
-		Optional<AnimationSet.Sequence> sequence = set.sequence(PlayerAnimations.gestureName(action, state.isCrouching, inAir));
+		String name = PlayerAnimations.gestureName(action, posture);
+		Optional<AnimationSet.Sequence> sequence = name == null ? Optional.empty() : set.sequence(name);
 
 		if (sequence.isEmpty()) {
 			memory.stopGesture();

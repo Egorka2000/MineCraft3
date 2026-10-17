@@ -1,15 +1,18 @@
 package io.github.egorka2000.tf2mc.block;
 
+import java.util.Set;
 import java.util.function.Function;
 
 import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.team.TfTeam;
 
 import net.fabricmc.fabric.api.creativetab.v1.FabricCreativeModeTab;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
+import net.minecraft.core.SectionPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -23,8 +26,11 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.phys.AABB;
 
@@ -52,8 +58,16 @@ public final class Tf2Blocks {
 	public static final Block LARGE_AMMO_PACK = pickup("large_ammo_pack", PickupBlock.Kind.AMMO, 1.0, 9);
 
 	/** Шкафы пополнения команд. */
-	public static final Block RED_RESUPPLY = register("red_resupply", properties -> new ResupplyBlock(TfTeam.RED, properties), MapColor.COLOR_RED);
-	public static final Block BLU_RESUPPLY = register("blu_resupply", properties -> new ResupplyBlock(TfTeam.BLU, properties), MapColor.COLOR_BLUE);
+	// Не заслоняют соседей: с паком на месте блока рисуется модель шкафа TF2, а не куб.
+	public static final Block RED_RESUPPLY = register("red_resupply", properties -> new ResupplyBlock(TfTeam.RED, properties.noOcclusion()), MapColor.COLOR_RED);
+	public static final Block BLU_RESUPPLY = register("blu_resupply", properties -> new ResupplyBlock(TfTeam.BLU, properties.noOcclusion()), MapColor.COLOR_BLUE);
+
+	/** Блочная сущность аптечек, патронов и шкафов: по ней клиент рисует модели TF2 из пака. */
+	public static final BlockEntityType<PropBlockEntity> PROP = Registry.register(
+			BuiltInRegistries.BLOCK_ENTITY_TYPE,
+			Tf2Mc.id("prop"),
+			new BlockEntityType<>(PropBlockEntity::new, Set.of(SMALL_HEALTH_KIT, MEDIUM_HEALTH_KIT, LARGE_HEALTH_KIT,
+					SMALL_AMMO_PACK, MEDIUM_AMMO_PACK, LARGE_AMMO_PACK, RED_RESUPPLY, BLU_RESUPPLY)));
 
 	/** Двери зон возрождения: пропускают только свою команду. Как стекло: не душат и не заслоняют вид изнутри. */
 	public static final Block RED_SPAWN_DOOR = register("red_spawn_door", properties -> new SpawnDoorBlock(TfTeam.RED, door(properties)), MapColor.COLOR_RED);
@@ -91,6 +105,36 @@ public final class Tf2Blocks {
 	/** Вызывается при запуске мода: регистрирует блоки, подбор аптечек и патронов, шкафы пополнения. */
 	public static void register() {
 		ServerTickEvents.END_SERVER_TICK.register(Tf2Blocks::touchBlocks);
+		ServerChunkEvents.CHUNK_LOAD.register((level, chunk, generated) -> addMissingProps(chunk));
+	}
+
+	/**
+	 * Аптечки, патроны и шкафы, поставленные до версии 0.20.0, были без блочной сущности, и
+	 * клиент не нарисовал бы их моделями TF2. При загрузке чанка недостающие сущности создаются.
+	 */
+	public static void addMissingProps(LevelChunk chunk) {
+		LevelChunkSection[] sections = chunk.getSections();
+
+		for (int index = 0; index < sections.length; index++) {
+			LevelChunkSection section = sections[index];
+
+			if (section.hasOnlyAir() || !section.maybeHas(PROP::isValid)) {
+				continue;
+			}
+
+			int baseY = SectionPos.sectionToBlockCoord(chunk.getSectionYFromSectionIndex(index));
+
+			for (int y = 0; y < SectionPos.SECTION_SIZE; y++) {
+				for (int z = 0; z < SectionPos.SECTION_SIZE; z++) {
+					for (int x = 0; x < SectionPos.SECTION_SIZE; x++) {
+						if (PROP.isValid(section.getBlockState(x, y, z))) {
+							chunk.getBlockEntity(new BlockPos(chunk.getPos().getMinBlockX() + x, baseY + y, chunk.getPos().getMinBlockZ() + z),
+									LevelChunk.EntityCreationType.IMMEDIATE);
+						}
+					}
+				}
+			}
+		}
 	}
 
 	/**

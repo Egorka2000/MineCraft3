@@ -77,6 +77,7 @@ public final class ClassModels {
 		}
 
 		sourceTextures.clear();
+		PropModels.reload(resources, textureManager, Tf2Mc.config().current().unitsPerBlock(), sourceTextures);
 		rocket = SourceModels.loadMesh(resources, textureManager, SourceModels.ROCKET, Tf2Mc.config().current().unitsPerBlock(), sourceTextures)
 				.map(SourceModels.Prop::new);
 		// Руки без анимаций не нужны: в паке до 2026-10-17 файла анимаций рук нет.

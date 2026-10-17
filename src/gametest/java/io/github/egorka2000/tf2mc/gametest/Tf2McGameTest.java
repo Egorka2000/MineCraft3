@@ -12,6 +12,7 @@ import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.tree.CommandNode;
 import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.block.PickupBlock;
+import io.github.egorka2000.tf2mc.block.PropBlockEntity;
 import io.github.egorka2000.tf2mc.block.Tf2Blocks;
 import io.github.egorka2000.tf2mc.clazz.ClassHealth;
 import io.github.egorka2000.tf2mc.clazz.PendingChoice;
@@ -48,6 +49,7 @@ import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 
@@ -55,6 +57,30 @@ import net.minecraft.world.phys.shapes.CollisionContext;
  * Серверные игровые тесты: запускают настоящий сервер с модом.
  */
 public class Tf2McGameTest {
+	// Аптечки и шкафы — с блочной сущностью: по ней клиент рисует модели TF2. Блок, поставленный
+	// до версии 0.20.0 (без сущности), получает её при загрузке чанка.
+	@GameTest
+	public void propBlocksHaveBlockEntities(GameTestHelper helper) {
+		ServerLevel level = helper.getLevel();
+		BlockPos kit = helper.absolutePos(new BlockPos(1, 1, 1));
+		BlockPos locker = helper.absolutePos(new BlockPos(3, 1, 1));
+		level.setBlockAndUpdate(kit, Tf2Blocks.SMALL_HEALTH_KIT.defaultBlockState());
+		level.setBlockAndUpdate(locker, Tf2Blocks.RED_RESUPPLY.defaultBlockState());
+
+		check(level.getBlockEntity(kit) instanceof PropBlockEntity, "у аптечки нет блочной сущности");
+		check(level.getBlockEntity(locker) instanceof PropBlockEntity, "у шкафа нет блочной сущности");
+
+		// Без сущности, как у блока из старого мира. level.getBlockEntity на сервере создал бы её
+		// сам, поэтому чанк спрашивается без создания.
+		LevelChunk chunk = level.getChunkAt(kit);
+		level.removeBlockEntity(kit);
+		check(chunk.getBlockEntity(kit, LevelChunk.EntityCreationType.CHECK) == null, "сущность аптечки не удалилась");
+		Tf2Blocks.addMissingProps(chunk);
+		check(chunk.getBlockEntity(kit, LevelChunk.EntityCreationType.CHECK) instanceof PropBlockEntity, "сущность аптечки не восстановилась при загрузке чанка");
+
+		helper.succeed();
+	}
+
 	// Дымовой тест: сервер с модом стартует, мод виден загрузчику.
 	@GameTest
 	public void modIsLoadedOnServer(GameTestHelper helper) {
