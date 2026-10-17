@@ -45,6 +45,7 @@ import net.minecraft.client.sounds.WeighedSoundEvents;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.repository.PackRepository;
 import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
 
@@ -575,6 +576,10 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			List<SoundInstance> played = new CopyOnWriteArrayList<>();
 			SoundEventListener listener = (sound, events, range) -> played.add(sound);
 			context.runOnClient(client -> client.getSoundManager().addListener(listener));
+			// Без звукового устройства (в CI) игра звуков не играет и слушателю ничего не сообщает:
+			// пробный звук интерфейса показывает, работает ли звук вообще.
+			context.runOnClient(client -> client.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F)));
+			boolean soundWorks = !played.isEmpty();
 			context.getInput().pressKey(options -> options.keyUse);
 			context.waitTicks(3);
 			context.runOnClient(client -> client.getSoundManager().removeListener(listener));
@@ -584,11 +589,15 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 				throw new AssertionError("событие выстрела не дошло до клиента: " + gesture);
 			}
 
-			SoundInstance shot = played.stream().filter(sound -> sound.getIdentifier().equals(Tf2Mc.id("weapon_rpg.single"))).findFirst()
-					.orElseThrow(() -> new AssertionError("звук выстрела не прозвучал"));
+			if (soundWorks) {
+				SoundInstance shot = played.stream().filter(sound -> sound.getIdentifier().equals(Tf2Mc.id("weapon_rpg.single"))).findFirst()
+						.orElseThrow(() -> new AssertionError("звук выстрела не прозвучал"));
 
-			if (!(shot instanceof EntityBoundSoundInstance)) {
-				throw new AssertionError("звук выстрела не привязан к стрелку: " + shot.getClass().getSimpleName());
+				if (!(shot instanceof EntityBoundSoundInstance)) {
+					throw new AssertionError("звук выстрела не привязан к стрелку: " + shot.getClass().getSimpleName());
+				}
+			} else {
+				Tf2Mc.LOGGER.info("[звук] звуковое устройство недоступно, привязка звука выстрела к стрелку не проверена");
 			}
 
 			// Отрисовка от третьего лица, с ракетой в полёте: ошибка в отрисовщике уронила бы клиент.
