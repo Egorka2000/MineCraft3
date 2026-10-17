@@ -155,6 +155,28 @@ class MagazineTest {
 	}
 
 	@Test
+	void deployBlocksFireAndReloadForHalfSecond() {
+		// Обойма неполная, пауза после выстрела прошла: ракетницу только что взяли в руку.
+		Magazine drawn = new Magazine(2, 20, 0, 0, 0).deploy(RULES);
+
+		assertFalse(drawn.canFire(), "сразу после доставания выстрелить нельзя");
+		Magazine almost = ticks(drawn, RULES.deployTicks() - 1);
+		assertFalse(almost.canFire(), "за тик до конца доставания выстрелить нельзя");
+		assertEquals(0, almost.reloadTicks(), "во время доставания перезарядка не идёт");
+
+		Magazine ready = ticks(drawn, RULES.deployTicks());
+		assertTrue(ready.canFire(), "после доставания можно стрелять");
+		assertTrue(ready.tick(RULES).reloadTicks() > 0, "после доставания начинается перезарядка");
+	}
+
+	@Test
+	void deployKeepsLongerFirePause() {
+		Magazine fired = new Magazine(3, 20, 0, 0, 0).fire(RULES);
+
+		assertEquals(RULES.fireInterval(), fired.deploy(RULES).fireCooldown(), "доставание не сокращает паузу после выстрела");
+	}
+
+	@Test
 	void negativeStateIsRejected() {
 		assertThrows(IllegalArgumentException.class, () -> new Magazine(-1, 0, 0, 0, 0));
 	}
