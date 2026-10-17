@@ -1,6 +1,7 @@
 package io.github.egorka2000.tf2mc.sourcemodel;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -114,6 +115,36 @@ class TextureTest {
 
 		assertEquals(Optional.empty(), eye.baseTexture());
 		assertEquals(Optional.of("models/player/shared/eye-iris-blue"), eye.colorTexture());
+	}
+
+	@Test
+	void alphaIsTransparencyOnlyWhenMarked() {
+		VmtMaterial phongMask = VmtMaterial.parse("""
+				"VertexLitGeneric"
+				{
+					"$basetexture" "models/weapons/c_items/c_rocketlauncher"
+					"$basemapalphaphongmask" "1"
+				}
+				""");
+		VmtMaterial alphaTest = VmtMaterial.parse("""
+				"VertexLitGeneric"
+				{
+					"$basetexture" "models/test/leaves"
+					"$alphatest" "1"
+				}
+				""");
+		VmtMaterial translucent = VmtMaterial.parse("""
+				"VertexLitGeneric"
+				{
+					"$basetexture" "models/test/glass"
+					"$translucent" "1"
+					"$alphatest" "0"
+				}
+				""");
+
+		assertFalse(phongMask.seeThrough());
+		assertTrue(alphaTest.seeThrough());
+		assertTrue(translucent.seeThrough());
 	}
 
 	@Test

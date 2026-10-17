@@ -35,6 +35,15 @@ public final class SourceModels {
 	/** Модель Soldier: файлы MDL, VVD и VTX рядом. */
 	public static final String SOLDIER = "models/player/soldier";
 
+	/** Оружие Soldier в руках, от третьего лица. */
+	public static final String ROCKET_LAUNCHER = "models/weapons/c_models/c_rocketlauncher/c_rocketlauncher";
+
+	/** Руки Soldier от первого лица; анимации — в подключённом {@code c_soldier_animations.mdl}. */
+	public static final String SOLDIER_ARMS = "models/weapons/c_models/c_soldier_arms";
+
+	/** Ракета Soldier в полёте. */
+	public static final String ROCKET = "models/weapons/w_models/w_rocket";
+
 	/** Семейства скинов у игроков TF2. */
 	public static final int RED = 0;
 	public static final int BLU = 1;
@@ -47,24 +56,22 @@ public final class SourceModels {
 	}
 
 	/**
-	 * Модель, готовая к отрисовке в любой позе: вершины в пространстве привязки (как в VVD), кости,
-	 * анимации (если в паке есть файл анимаций) и треугольники для обеих команд.
+	 * Модель на костях, готовая к отрисовке в любой позе: вершины в пространстве привязки (как в
+	 * VVD), кости и треугольники для обеих команд.
 	 */
-	public static final class PlayerMesh {
+	public static final class SkinnedMesh {
 		/** Сколько чисел на вершину в осях Minecraft: x y z, u v, нормаль x y z. */
 		public static final int STRIDE = 8;
 
 		private final VertexData vertices;
 		private final List<StudioModel.Bone> bones;
-		private final AnimationSet animations;
 		private final float scale;
 		private final List<Draw> red;
 		private final List<Draw> blu;
 
-		PlayerMesh(VertexData vertices, List<StudioModel.Bone> bones, AnimationSet animations, float scale, List<Draw> red, List<Draw> blu) {
+		SkinnedMesh(VertexData vertices, List<StudioModel.Bone> bones, float scale, List<Draw> red, List<Draw> blu) {
 			this.vertices = vertices;
 			this.bones = bones;
-			this.animations = animations;
 			this.scale = scale;
 			this.red = red;
 			this.blu = blu;
@@ -74,25 +81,24 @@ public final class SourceModels {
 			return family == BLU ? blu : red;
 		}
 
-		/** Анимации модели; пусто, если файла анимаций нет и модель стоит в начальной позе. */
-		public Optional<AnimationSet> animations() {
-			return Optional.ofNullable(animations);
+		public List<StudioModel.Bone> bones() {
+			return bones;
 		}
 
 		/**
 		 * Вершины в осях Minecraft (блоки, ось y вверх, перёд −z, как у ванильных моделей после
-		 * поворота тела) для позы.
+		 * поворота тела).
 		 *
-		 * @param pose поза из анимаций; {@code null} — начальная поза
+		 * @param skin матрицы отрисовки костей ({@link Pose#skinMatrices}); {@code null} — начальная поза
 		 */
-		public float[] skin(Pose pose) {
+		public float[] skin(float[] skin) {
 			int count = vertices.count();
 			float[] p = vertices.positions();
 			float[] n = vertices.normals();
 			float[] uv = vertices.texCoords();
 			float[] out = new float[count * STRIDE];
 
-			if (pose == null) {
+			if (skin == null) {
 				// Начальная поза моделей игроков TF2 хранится с осью y вверх, лицом к +z, левая
 				// рука к +x (проверено на Soldier: глаза впереди головы по +z, правый глаз на −x).
 				// В Minecraft после поворота тела перёд −z, лево −x: разворот на 180° вокруг y.
@@ -103,7 +109,6 @@ public final class SourceModels {
 				return out;
 			}
 
-			float[] skin = pose.skinMatrices(bones);
 			int[] boneIndices = vertices.boneIndices();
 			float[] weights = vertices.boneWeights();
 			float[] position = new float[3];
@@ -141,6 +146,28 @@ public final class SourceModels {
 			return out;
 		}
 
+		/**
+		 * Вершины неподвижного предмета в начальной позе, в осях Minecraft: верх модели (+z Source)
+		 * вверх, ось −y модели — вдоль +z. Это не поворот тела игрока: предмет разворачивает тот,
+		 * кто его рисует.
+		 */
+		public float[] still() {
+			float[] skin = Pose.rest(bones).skinMatrices(bones);
+			float[] posed = skin(skin);
+			float[] out = new float[posed.length];
+
+			// skin() кладёт точку Source (x, y, z) в (−y, z, −x); здесь нужно (x, z, −y).
+			for (int at = 0; at < posed.length; at += STRIDE) {
+				System.arraycopy(posed, at, out, at, STRIDE);
+				out[at] = -posed[at + 2];
+				out[at + 2] = posed[at];
+				out[at + 5] = -posed[at + 7];
+				out[at + 7] = posed[at + 5];
+			}
+
+			return out;
+		}
+
 		private void put(float[] out, int v, float x, float y, float z, float[] uv, float nx, float ny, float nz) {
 			int at = v * STRIDE;
 			out[at] = x * scale;
@@ -155,15 +182,54 @@ public final class SourceModels {
 	}
 
 	/**
-	 * Читает модель из ресурсов и регистрирует её текстуры.
+	 * Персонаж: тело, анимации (если в паке есть файл анимаций) и оружие в руках (если есть его
+	 * модель; оружию нужны анимации тела, чтобы знать, где руки).
+	 */
+	public record PlayerMesh(SkinnedMesh body, Optional<AnimationSet> animations, Optional<SkinnedMesh> weapon) {
+	}
+
+	/** Неподвижный предмет: модель и её вершины, посчитанные один раз ({@link SkinnedMesh#still}). */
+	public record Prop(SkinnedMesh mesh, float[] vertices) {
+		public Prop(SkinnedMesh mesh) {
+			this(mesh, mesh.still());
+		}
+	}
+
+	/**
+	 * Читает персонажа из ресурсов и регистрирует текстуры.
 	 *
+	 * @param weapon        модель оружия в руках, например {@link #ROCKET_LAUNCHER}
 	 * @param unitsPerBlock масштаб: сколько единиц TF2 в блоке
 	 * @param textures      сюда добавляются имена зарегистрированных текстур, чтобы при следующей
 	 *                      перезагрузке их освободить
 	 * @return пусто, если модели в ресурсах нет (пак не подключён) или она не читается
 	 */
-	public static Optional<PlayerMesh> load(ResourceManager resources, TextureManager textureManager, String model, double unitsPerBlock,
+	public static Optional<PlayerMesh> load(ResourceManager resources, TextureManager textureManager, String model, String weapon,
+			double unitsPerBlock, List<Identifier> textures) {
+		float scale = (float) (1.0 / unitsPerBlock);
+		Optional<byte[]> mdl = read(resources, model + ".mdl");
+		Optional<SkinnedMesh> body = mesh(resources, textureManager, model, scale, textures);
+
+		if (body.isEmpty() || mdl.isEmpty()) {
+			return Optional.empty();
+		}
+
+		Optional<AnimationSet> animations = Optional.ofNullable(animations(resources, StudioModel.read(mdl.get()), model));
+		Optional<SkinnedMesh> weaponMesh = animations.isPresent() ? mesh(resources, textureManager, weapon, scale, textures) : Optional.empty();
+		return Optional.of(new PlayerMesh(body.get(), animations, weaponMesh));
+	}
+
+	/**
+	 * Читает модель без анимаций, например {@link #ROCKET}, и регистрирует её текстуры.
+	 *
+	 * @return пусто, если модели в ресурсах нет (пак не подключён) или она не читается
+	 */
+	public static Optional<SkinnedMesh> loadMesh(ResourceManager resources, TextureManager textureManager, String model, double unitsPerBlock,
 			List<Identifier> textures) {
+		return mesh(resources, textureManager, model, (float) (1.0 / unitsPerBlock), textures);
+	}
+
+	private static Optional<SkinnedMesh> mesh(ResourceManager resources, TextureManager textureManager, String model, float scale, List<Identifier> textures) {
 		Optional<byte[]> mdl = read(resources, model + ".mdl");
 
 		if (mdl.isEmpty()) {
@@ -176,7 +242,7 @@ public final class SourceModels {
 			SourceModel red = SourceModel.read(mdl.get(), vvd, vtx, RED);
 			SourceModel blu = SourceModel.read(mdl.get(), vvd, vtx, BLU);
 
-			return Optional.of(new PlayerMesh(red.vertices(), red.studio().bones(), animations(resources, red.studio(), model), (float) (1.0 / unitsPerBlock),
+			return Optional.of(new SkinnedMesh(red.vertices(), red.studio().bones(), scale,
 					draws(red, resources, textureManager, textures), draws(blu, resources, textureManager, textures)));
 		} catch (ModelFormatException e) {
 			Tf2Mc.LOGGER.warn("модель {} из расширительного пака не читается: {}", model, e.getMessage());
@@ -219,46 +285,51 @@ public final class SourceModels {
 		List<Draw> draws = new ArrayList<>();
 
 		for (SourceModel.Part part : model.parts()) {
-			draws.add(new Draw(texture(part.materials(), resources, textureManager, textures), part.triangles()));
+			draws.add(draw(part.materials(), part.triangles(), resources, textureManager, textures));
 		}
 
 		return List.copyOf(draws);
 	}
 
-	/**
-	 * Текстура материала: первый найденный VMT из списка путей, его {@code $basetexture} (с переходом
-	 * по {@code include} у заплаток), затем VTF. Не нашлась — белая заглушка игры.
-	 */
-	private static Identifier texture(List<String> materials, ResourceManager resources, TextureManager textureManager, List<Identifier> textures) {
-		for (String material : materials) {
-			Optional<String> base = baseTexture(resources, "materials/" + material + ".vmt", 4);
+	/** Текстура материала и есть ли в ней прозрачные места ({@link VmtMaterial#seeThrough}). */
+	private record Material(String texture, boolean seeThrough) {
+	}
 
-			if (base.isEmpty()) {
+	/**
+	 * Треугольники одного материала: первый найденный VMT из списка путей, его {@code $basetexture}
+	 * (с переходом по {@code include} у заплаток), затем VTF. Не нашлась — белая заглушка игры.
+	 */
+	private static Draw draw(List<String> materials, int[] triangles, ResourceManager resources, TextureManager textureManager, List<Identifier> textures) {
+		for (String path : materials) {
+			Optional<Material> material = material(resources, "materials/" + path + ".vmt", 4);
+
+			if (material.isEmpty()) {
 				continue;
 			}
 
-			Optional<byte[]> vtf = read(resources, "materials/" + base.get() + ".vtf");
+			String base = material.get().texture();
+			Optional<byte[]> vtf = read(resources, "materials/" + base + ".vtf");
 
 			if (vtf.isEmpty()) {
-				Tf2Mc.LOGGER.warn("нет текстуры materials/{}.vtf для материала {}", base.get(), material);
+				Tf2Mc.LOGGER.warn("нет текстуры materials/{}.vtf для материала {}", base, path);
 				continue;
 			}
 
 			try {
-				Identifier id = Tf2Mc.id("tf2/" + base.get());
-				textureManager.register(id, new DynamicTexture(id::toString, image(VtfImage.read(vtf.get()))));
+				Identifier id = Tf2Mc.id("tf2/" + base);
+				textureManager.register(id, new DynamicTexture(id::toString, image(VtfImage.read(vtf.get()), material.get().seeThrough())));
 				textures.add(id);
-				return id;
+				return new Draw(id, triangles);
 			} catch (ModelFormatException e) {
-				Tf2Mc.LOGGER.warn("текстура {} не читается: {}", base.get(), e.getMessage());
+				Tf2Mc.LOGGER.warn("текстура {} не читается: {}", base, e.getMessage());
 			}
 		}
 
 		Tf2Mc.LOGGER.warn("нет материала модели среди {}", materials);
-		return Identifier.withDefaultNamespace("textures/misc/white.png");
+		return new Draw(Identifier.withDefaultNamespace("textures/misc/white.png"), triangles);
 	}
 
-	private static Optional<String> baseTexture(ResourceManager resources, String vmtPath, int depth) {
+	private static Optional<Material> material(ResourceManager resources, String vmtPath, int depth) {
 		Optional<byte[]> vmt = read(resources, vmtPath);
 
 		if (vmt.isEmpty() || depth == 0) {
@@ -270,23 +341,29 @@ public final class SourceModels {
 			Optional<String> base = material.colorTexture();
 
 			if (base.isEmpty() && material.include().isPresent()) {
-				return baseTexture(resources, material.include().get(), depth - 1);
+				return material(resources, material.include().get(), depth - 1)
+						.map(included -> new Material(included.texture(), included.seeThrough() || material.seeThrough()));
 			}
 
-			return base;
+			return base.map(texture -> new Material(texture, material.seeThrough()));
 		} catch (ModelFormatException e) {
 			Tf2Mc.LOGGER.warn("материал {} не читается: {}", vmtPath, e.getMessage());
 			return Optional.empty();
 		}
 	}
 
-	private static NativeImage image(VtfImage vtf) {
+	/**
+	 * Текстура для игры. У непрозрачного материала альфа-канал TF2 — маска блеска: она заменяется
+	 * полной непрозрачностью, иначе отрисовка с вырезанием по альфе наделала бы в модели дыр.
+	 */
+	private static NativeImage image(VtfImage vtf, boolean seeThrough) {
 		NativeImage image = new NativeImage(vtf.width(), vtf.height(), false);
 		int[] argb = vtf.argb();
+		int opaque = seeThrough ? 0 : 0xFF000000;
 
 		for (int y = 0; y < vtf.height(); y++) {
 			for (int x = 0; x < vtf.width(); x++) {
-				image.setPixel(x, y, argb[y * vtf.width() + x]);
+				image.setPixel(x, y, argb[y * vtf.width() + x] | opaque);
 			}
 		}
 

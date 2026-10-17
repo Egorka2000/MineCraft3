@@ -5,7 +5,6 @@ import io.github.egorka2000.tf2mc.movement.UnitConversion;
 import io.github.egorka2000.tf2mc.team.Teams;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -93,8 +92,6 @@ public class RocketEntity extends Projectile {
 		}
 
 		setPos(next);
-		// Своей модели у ракеты пока нет: путь видно по дыму.
-		level.sendParticles(ParticleTypes.SMOKE, getX(), getY(), getZ(), 2, 0.0, 0.0, 0.0, 0.0);
 	}
 
 	/**
