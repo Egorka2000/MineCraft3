@@ -69,13 +69,38 @@ public final class PlayerAnimations {
 		return age - gestureAt;
 	}
 
-	/** Жест TF2 с основным оружием для события оружия и положения тела: стоя, в приседе или в воздухе. */
-	public static String gestureName(WeaponAction action, boolean crouching, boolean inAir) {
+	/** Положение тела, от которого зависят основная анимация и жесты. */
+	public enum Posture {
+		STAND,
+		CROUCH,
+		AIR,
+		SWIM
+	}
+
+	/**
+	 * Жест TF2 с основным оружием для события оружия и положения тела.
+	 *
+	 * @return {@code null}, если у TF2 такого жеста нет: в воде перезарядка — одна
+	 *         последовательность без повтора и конца
+	 */
+	public static String gestureName(WeaponAction action, Posture posture) {
 		if (action == WeaponAction.FIRE) {
-			return crouching ? "AttackCrouch_PRIMARY" : "AttackStand_PRIMARY";
+			return switch (posture) {
+				case CROUCH -> "AttackCrouch_PRIMARY";
+				case SWIM -> "AttackSwim_PRIMARY";
+				default -> "AttackStand_PRIMARY";
+			};
 		}
 
-		String reload = inAir ? "ReloadAirwalk_PRIMARY" : crouching ? "ReloadCrouch_PRIMARY" : "ReloadStand_PRIMARY";
+		if (posture == Posture.SWIM) {
+			return action == WeaponAction.RELOAD_END ? null : "ReloadSwim_PRIMARY";
+		}
+
+		String reload = switch (posture) {
+			case AIR -> "ReloadAirwalk_PRIMARY";
+			case CROUCH -> "ReloadCrouch_PRIMARY";
+			default -> "ReloadStand_PRIMARY";
+		};
 
 		return switch (action) {
 			case RELOAD_LOOP -> reload + "_loop";

@@ -788,6 +788,14 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			server.runCommand("execute at @p run tp @p ~ ~ ~-4.5");
 			context.runOnClient(client -> client.player.setXRot(0.0F));
 
+			// В воде с головой — плавание.
+			server.runCommand("execute at @p run fill ~-3 ~ ~-3 ~3 ~3 ~3 minecraft:water");
+			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_FRONT));
+			context.waitTicks(30);
+			context.takeScreenshot("tf2mc-real-model-swim");
+			server.runCommand("execute at @p run fill ~-3 ~ ~-3 ~3 ~3 ~3 minecraft:air");
+			context.waitTicks(40);
+
 			// Игрок BLU — синий скин той же модели.
 			server.runCommand("tf2 team blu @p");
 			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_FRONT));
