@@ -77,29 +77,38 @@ public final class PlayerAnimations {
 		SWIM
 	}
 
-	/**
-	 * Жест TF2 с основным оружием для события оружия и положения тела.
-	 *
-	 * @return {@code null}, если у TF2 такого жеста нет: в воде перезарядка — одна
-	 *         последовательность без повтора и конца
-	 */
+	/** Жест TF2 с основным оружием для события оружия и положения тела. */
 	public static String gestureName(WeaponAction action, Posture posture) {
+		return gestureName(action, posture, WeaponView.PRIMARY);
+	}
+
+	/**
+	 * Жест TF2 для события оружия, положения тела и набора анимаций оружия ({@link WeaponView#slot}).
+	 * Имена у TF2 неодинаковые: перезарядка второго оружия в воздухе и в воде — {@code SECONDARY_reload_*}.
+	 *
+	 * @return {@code null}, если у TF2 такого жеста нет: с основным оружием в воде перезарядка —
+	 *         одна последовательность без повтора и конца
+	 */
+	public static String gestureName(WeaponAction action, Posture posture, String slot) {
 		if (action == WeaponAction.FIRE) {
 			return switch (posture) {
-				case CROUCH -> "AttackCrouch_PRIMARY";
-				case SWIM -> "AttackSwim_PRIMARY";
-				default -> "AttackStand_PRIMARY";
+				case CROUCH -> "AttackCrouch_" + slot;
+				case SWIM -> "AttackSwim_" + slot;
+				default -> "AttackStand_" + slot;
 			};
 		}
 
-		if (posture == Posture.SWIM) {
+		boolean primary = slot.equals(WeaponView.PRIMARY);
+
+		if (posture == Posture.SWIM && primary) {
 			return action == WeaponAction.RELOAD_END ? null : "ReloadSwim_PRIMARY";
 		}
 
 		String reload = switch (posture) {
-			case AIR -> "ReloadAirwalk_PRIMARY";
-			case CROUCH -> "ReloadCrouch_PRIMARY";
-			default -> "ReloadStand_PRIMARY";
+			case AIR -> primary ? "ReloadAirwalk_PRIMARY" : slot + "_reload_airwalk";
+			case SWIM -> slot + "_reload_swim";
+			case CROUCH -> "ReloadCrouch_" + slot;
+			default -> "ReloadStand_" + slot;
 		};
 
 		return switch (action) {

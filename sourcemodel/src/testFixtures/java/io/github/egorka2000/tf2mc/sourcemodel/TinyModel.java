@@ -163,11 +163,11 @@ public final class TinyModel {
 
 	/**
 	 * Файл анимаций для крошечной модели: те же две кости, параметр позы {@code move_x},
-	 * последовательность {@code idle} (по кругу) с одной анимацией на 3 кадра. В анимации
+	 * последовательность {@code idle} (по кругу) с одной анимацией на 3 кадра и звуком на середине. В анимации
 	 * дочерняя кость поворачивается вокруг z на 0, 1 и 2 радиана и сдвинута по x на 2,5.
 	 */
 	public static byte[] animations() {
-		ByteBuffer out = buffer(1400);
+		ByteBuffer out = buffer(1500);
 		out.put(0, "IDST".getBytes(StandardCharsets.US_ASCII));
 		out.putInt(4, 48);
 		putString(out, 12, "test/tiny_animations.mdl");
@@ -237,6 +237,16 @@ public final class TinyModel {
 		out.putInt(seq + 76, -1);
 		out.putInt(seq + 80, -1);
 		out.putShort(1320, (short) 0);
+
+		// Одно событие на середине: звук нового вида, имя события — строка за описанием.
+		int event = 1400;
+		out.putInt(seq + 24, 1);
+		out.putInt(seq + 28, event - seq);
+		out.putFloat(event, 0.5F);
+		out.putInt(event + 8, 1 << 10);
+		putString(out, event + 12, "Test.Sound");
+		out.putInt(event + 76, 80);
+		putString(out, event + 80, "AE_CL_PLAYSOUND");
 		return out.array();
 	}
 

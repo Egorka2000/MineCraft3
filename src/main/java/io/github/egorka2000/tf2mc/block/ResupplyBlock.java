@@ -7,8 +7,9 @@ import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
 import io.github.egorka2000.tf2mc.clazz.TfClass;
 import io.github.egorka2000.tf2mc.team.Teams;
 import io.github.egorka2000.tf2mc.team.TfTeam;
-import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
+import io.github.egorka2000.tf2mc.weapon.ClipWeapon;
 import io.github.egorka2000.tf2mc.weapon.Tf2Sounds;
+import io.github.egorka2000.tf2mc.weapon.Tf2Weapons;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -114,9 +115,11 @@ public final class ResupplyBlock extends Block implements EntityBlock {
 				changed = true;
 			}
 
-			RocketLauncher.Ammo before = RocketLauncher.ammo(player);
-			RocketLauncher.refill(player);
-			changed |= before != null && !before.equals(RocketLauncher.ammo(player));
+			for (ClipWeapon weapon : Tf2Weapons.CLIP_WEAPONS) {
+				ClipWeapon.Ammo before = weapon.ammo(player);
+				weapon.refill(player);
+				changed |= before != null && !before.equals(weapon.ammo(player));
+			}
 		}
 
 		// Звук — только когда шкаф действительно что-то сделал: игрок может стоять рядом долго.

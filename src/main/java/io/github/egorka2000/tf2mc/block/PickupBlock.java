@@ -2,9 +2,9 @@ package io.github.egorka2000.tf2mc.block;
 
 import io.github.egorka2000.tf2mc.clazz.ClassHealth;
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
-import io.github.egorka2000.tf2mc.weapon.Magazine;
-import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
+import io.github.egorka2000.tf2mc.weapon.ClipWeapon;
 import io.github.egorka2000.tf2mc.weapon.Tf2Sounds;
+import io.github.egorka2000.tf2mc.weapon.Tf2Weapons;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -115,15 +115,20 @@ public final class PickupBlock extends Block implements EntityBlock {
 			return true;
 		}
 
-		// Пока оружие с запасом одно — ракетница. С новым оружием патроны пополнят запас каждого.
-		RocketLauncher.Ammo ammo = RocketLauncher.ammo(player);
+		// Патроны пополняют запас каждого оружия на свою долю его наибольшего запаса. Подбирает их тот,
+		// у кого запас хоть одного оружия неполный.
+		boolean taken = false;
 
-		if (ammo == null || ammo.reserve() >= Magazine.Rules.ROCKET_LAUNCHER.reserveSize()) {
-			return false;
+		for (ClipWeapon weapon : Tf2Weapons.CLIP_WEAPONS) {
+			ClipWeapon.Ammo ammo = weapon.ammo(player);
+
+			if (ammo != null && ammo.reserve() < weapon.rules().reserveSize()) {
+				weapon.changeReserve(player, (int) Math.round(weapon.rules().reserveSize() * fraction), true);
+				taken = true;
+			}
 		}
 
-		RocketLauncher.changeReserve(player, (int) Math.round(Magazine.Rules.ROCKET_LAUNCHER.reserveSize() * fraction), true);
-		return true;
+		return taken;
 	}
 
 	/** Прошло 10 секунд: на подставке появляется новая. */

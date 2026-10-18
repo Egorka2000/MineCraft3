@@ -4,7 +4,7 @@ import java.util.Optional;
 
 import com.mojang.serialization.Codec;
 import io.github.egorka2000.tf2mc.Tf2Mc;
-import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
+import io.github.egorka2000.tf2mc.weapon.Tf2Weapons;
 
 import net.fabricmc.fabric.api.attachment.v1.AttachmentRegistry;
 import net.fabricmc.fabric.api.attachment.v1.AttachmentSyncPredicate;
@@ -54,9 +54,9 @@ public final class PlayerClasses {
 			// Ванильному игроку оружие класса не положено, даже если вещи сохраняются при смерти:
 			// он мог стать ванильным перед самым возрождением (PendingChoice).
 			if (get(oldPlayer).isPresent()) {
-				RocketLauncher.equip(newPlayer);
+				Tf2Weapons.equip(newPlayer);
 			} else {
-				RocketLauncher.unequip(newPlayer);
+				Tf2Weapons.unequip(newPlayer);
 			}
 		});
 		// При входе — на случай, если сохранённые данные игрока разошлись с описанием класса
@@ -86,9 +86,9 @@ public final class PlayerClasses {
 		applyHealth(player, Optional.ofNullable(tfClass), true);
 
 		if (tfClass == null) {
-			RocketLauncher.unequip(player);
+			Tf2Weapons.unequip(player);
 		} else {
-			RocketLauncher.equip(player);
+			Tf2Weapons.equip(player);
 		}
 	}
 

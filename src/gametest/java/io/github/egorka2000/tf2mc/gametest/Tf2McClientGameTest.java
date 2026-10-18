@@ -29,6 +29,7 @@ import io.github.egorka2000.tf2mc.config.ConfigManager;
 import io.github.egorka2000.tf2mc.sourcemodel.TinyModel;
 import io.github.egorka2000.tf2mc.sourcemodel.TinyTexture;
 import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
+import io.github.egorka2000.tf2mc.weapon.Shotgun;
 import io.github.egorka2000.tf2mc.weapon.WeaponAction;
 
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
@@ -49,6 +50,7 @@ import net.minecraft.server.packs.repository.PackRepository;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -335,7 +337,7 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 	 * заглушка. Опечатка в sounds.json дала бы тишину без единой ошибки.
 	 */
 	private static void assertSoundsHavePlaceholders(ClientGameTestContext context) {
-		for (String sound : new String[] {"weapon_rpg.single", "weapon_rpg.reload", "baseexplosioneffect.sound", "healthkit.touch", "ammopack.touch", "item.materialize", "regenerate.touch"}) {
+		for (String sound : new String[] {"weapon_rpg.single", "weapon_rpg.reload", "weapon_shotgun.single", "weapon_shotgun.reload", "baseexplosioneffect.sound", "healthkit.touch", "ammopack.touch", "item.materialize", "regenerate.touch"}) {
 			String file = soundBehind(context, sound);
 
 			if (file == null || file.equals("minecraft:empty") || file.equals("minecraft:intentionally_empty")) {
@@ -637,9 +639,14 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 
 	/** Берёт в руку ракетницу клавишей её ячейки на панели быстрого доступа. */
 	private static void selectRocketLauncher(ClientGameTestContext context) {
+		selectWeapon(context, RocketLauncher.ITEM);
+	}
+
+	/** Берёт в руку оружие клавишей его ячейки на панели быстрого доступа. */
+	private static void selectWeapon(ClientGameTestContext context, Item weapon) {
 		int slot = context.computeOnClient(client -> {
 			for (int i = 0; i < 9; i++) {
-				if (client.player.getInventory().getItem(i).is(RocketLauncher.ITEM)) {
+				if (client.player.getInventory().getItem(i).is(weapon)) {
 					return i;
 				}
 			}
@@ -648,7 +655,7 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		});
 
 		if (slot < 0) {
-			throw new AssertionError("ракетницы нет на панели быстрого доступа");
+			throw new AssertionError(weapon + " нет на панели быстрого доступа");
 		}
 
 		context.getInput().pressKey(options -> options.keyHotbarSlots[slot]);
@@ -753,6 +760,53 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			context.waitTicks(26);
 			context.takeScreenshot("tf2mc-real-model-first-person-reload");
 			context.waitTicks(40);
+
+			// Дробовик: второе оружие, свои руки и свои жесты тела.
+			selectWeapon(context, Shotgun.ITEM);
+			context.waitTicks(20);
+			context.takeScreenshot("tf2mc-real-model-shotgun-first-person");
+			// После выстрела руки передёргивают помпу: звуки из событий анимации рук TF2.
+			List<SoundInstance> played = new CopyOnWriteArrayList<>();
+			SoundEventListener listener = (sound, events, range) -> played.add(sound);
+			context.runOnClient(client -> client.getSoundManager().addListener(listener));
+			context.runOnClient(client -> client.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F)));
+			boolean soundWorks = !played.isEmpty();
+			context.getInput().pressKey(options -> options.keyUse);
+			context.waitTicks(3);
+			context.takeScreenshot("tf2mc-real-model-shotgun-first-person-fire");
+			context.waitTicks(20);
+			context.runOnClient(client -> client.getSoundManager().removeListener(listener));
+
+			if (soundWorks) {
+				for (String pump : List.of("weapon_shotgunengineer.cock_back", "weapon_shotgunengineer.cock_forward")) {
+					if (played.stream().noneMatch(sound -> sound.getIdentifier().equals(Tf2Mc.id(pump)))) {
+						throw new AssertionError("после выстрела не прозвучал звук помпы " + pump);
+					}
+				}
+			}
+
+			context.takeScreenshot("tf2mc-real-model-shotgun-first-person-reload");
+			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_FRONT));
+			context.waitTicks(40);
+			context.takeScreenshot("tf2mc-real-model-shotgun");
+			context.getInput().pressKey(options -> options.keyUse);
+			context.waitTicks(3);
+			context.takeScreenshot("tf2mc-real-model-shotgun-fire");
+			context.waitTicks(20);
+			context.takeScreenshot("tf2mc-real-model-shotgun-reload");
+			context.waitTicks(40);
+
+			// Дробь в землю перед собой: крошка блока в местах попадания.
+			context.runOnClient(client -> client.options.setCameraType(CameraType.FIRST_PERSON));
+			context.runOnClient(client -> client.player.setXRot(45.0F));
+			context.waitTicks(5);
+			context.getInput().pressKey(options -> options.keyUse);
+			context.waitTicks(2);
+			context.takeScreenshot("tf2mc-real-model-shotgun-impact");
+			context.runOnClient(client -> client.player.setXRot(0.0F));
+			context.waitTicks(40);
+			selectRocketLauncher(context);
+			context.runOnClient(client -> client.options.setCameraType(CameraType.FIRST_PERSON));
 
 			// Неподвижная ракета крупно и сбоку: игрок смотрит на юг, ракета повёрнута на восток —
 			// нос должен быть слева.

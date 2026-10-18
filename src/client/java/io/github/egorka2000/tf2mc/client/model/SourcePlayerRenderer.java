@@ -11,7 +11,6 @@ import io.github.egorka2000.tf2mc.sourcemodel.AnimationSet;
 import io.github.egorka2000.tf2mc.sourcemodel.Pose;
 import io.github.egorka2000.tf2mc.team.Teams;
 import io.github.egorka2000.tf2mc.team.TfTeam;
-import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
 import io.github.egorka2000.tf2mc.weapon.WeaponAction;
 
 import net.minecraft.client.player.AbstractClientPlayer;
@@ -73,16 +72,19 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 		boolean moving = Math.hypot(classState.moveForward, classState.moveLeft) > MOVING;
 
 		PlayerAnimations.Posture posture = posture(player, state.isCrouching);
+		// Набор анимаций — по оружию в руке; без оружия мода — как с основным.
+		classState.weapon = WeaponViews.of(player.getMainHandItem()).orElse(null);
+		classState.holdingWeapon = classState.weapon != null;
+		String slot = classState.weapon != null ? classState.weapon.slot() : WeaponView.PRIMARY;
 		String sequence = switch (posture) {
 			// Плавание смешивается по направлению, как бег; без движения — покачивание на месте.
-			case SWIM -> "swim_PRIMARY";
-			case AIR -> "jump_float_PRIMARY";
-			case CROUCH -> moving ? "crouch_walk_PRIMARY" : "crouch_PRIMARY";
-			case STAND -> moving ? "run_PRIMARY" : "stand_PRIMARY";
+			case SWIM -> "swim_" + slot;
+			case AIR -> "jump_float_" + slot;
+			case CROUCH -> (moving ? "crouch_walk_" : "crouch_") + slot;
+			case STAND -> (moving ? "run_" : "stand_") + slot;
 		};
 
 		classState.sequence = sequence;
-		classState.holdingWeapon = player.getMainHandItem().is(RocketLauncher.ITEM);
 		classState.previousSequence = null;
 		classState.transition = 1.0F;
 		classState.gestureSequence = null;
@@ -154,7 +156,7 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 			return;
 		}
 
-		String name = PlayerAnimations.gestureName(action, posture);
+		String name = PlayerAnimations.gestureName(action, posture, state.weapon != null ? state.weapon.slot() : WeaponView.PRIMARY);
 		Optional<AnimationSet.Sequence> sequence = name == null ? Optional.empty() : set.sequence(name);
 
 		if (sequence.isEmpty()) {
@@ -202,8 +204,8 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 			submit(collector, poseStack, body, body.skin(pose == null ? null : pose.skinMatrices(body.bones())), family, state.lightCoords, overlay);
 
 			// Оружие повторяет кость weapon_bone тела.
-			if (world != null && classState.holdingWeapon && mesh.weapon().isPresent()) {
-				SourceModels.SkinnedMesh weapon = mesh.weapon().get();
+			if (world != null && classState.weapon != null && mesh.weapon(classState.weapon.model()).isPresent()) {
+				SourceModels.SkinnedMesh weapon = mesh.weapon(classState.weapon.model()).get();
 				float[] skin = Pose.attachedSkinMatrices(weapon.bones(), body.bones(), world);
 				submit(collector, poseStack, weapon, weapon.skin(skin), family, state.lightCoords, overlay);
 			}

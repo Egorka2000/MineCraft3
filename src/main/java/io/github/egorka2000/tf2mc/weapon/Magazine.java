@@ -37,6 +37,13 @@ public record Magazine(int clip, int reserve, int fireCooldown, int reloadTicks,
 		 */
 		public static final Rules ROCKET_LAUNCHER = new Rules(4, 20, 16, 18, 16, 10);
 
+		/**
+		 * Дробовик Soldier: обойма 6, запас 32, выстрел раз в 0,625 с, первый патрон заряжается
+		 * 1,005 с, следующие по 0,51 с, достаётся за 0,5 с. Источник — docs/05-sources.md. Пауза
+		 * 0,625 с — 12,5 тика; тики целые, берётся 13.
+		 */
+		public static final Rules SHOTGUN = new Rules(6, 32, 13, 20, 10, 10);
+
 		/** Полная обойма и полный запас. */
 		public Magazine full() {
 			return new Magazine(clipSize, reserveSize, 0, 0, 0);

@@ -1,7 +1,8 @@
 package io.github.egorka2000.tf2mc.client;
 
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
-import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
+import io.github.egorka2000.tf2mc.weapon.ClipWeapon;
+import io.github.egorka2000.tf2mc.weapon.Tf2Weapons;
 
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
@@ -80,7 +81,7 @@ public final class HealthHud {
 		});
 	}
 
-	/** Боезапас ракетницы: «обойма / запас», прижат к правому краю панели. */
+	/** Боезапас оружия в руке: «обойма / запас», прижат к правому краю панели. Без оружия с обоймой в руке — ничего. */
 	private static void extractAmmo(GuiGraphicsExtractor graphics) {
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
@@ -89,7 +90,7 @@ public final class HealthHud {
 			return;
 		}
 
-		RocketLauncher.Ammo ammo = RocketLauncher.ammo(player);
+		ClipWeapon.Ammo ammo = Tf2Weapons.held(player).map(weapon -> weapon.ammo(player)).orElse(null);
 
 		if (ammo == null) {
 			return;

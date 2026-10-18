@@ -22,8 +22,11 @@ public final class ClassRenderState extends AvatarRenderState {
 	public float moveForward;
 	public float moveLeft;
 
-	/** В основной руке ракетница: её модель рисуется в руках. */
+	/** В основной руке оружие мода: его модель рисуется в руках. */
 	public boolean holdingWeapon;
+
+	/** Оружие мода в основной руке; {@code null} — другое или ничего. */
+	public WeaponView weapon;
 
 	/** Последовательность, с которой идёт плавный переход; {@code null} — перехода нет. */
 	public String previousSequence;

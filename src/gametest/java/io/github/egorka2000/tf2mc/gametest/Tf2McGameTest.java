@@ -25,9 +25,11 @@ import io.github.egorka2000.tf2mc.movement.SpeedometerToggle;
 import io.github.egorka2000.tf2mc.team.TeamSpawns;
 import io.github.egorka2000.tf2mc.team.Teams;
 import io.github.egorka2000.tf2mc.team.TfTeam;
+import io.github.egorka2000.tf2mc.weapon.ClipWeapon;
 import io.github.egorka2000.tf2mc.weapon.RocketBlast;
 import io.github.egorka2000.tf2mc.weapon.RocketEntity;
 import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
+import io.github.egorka2000.tf2mc.weapon.Shotgun;
 import io.github.egorka2000.tf2mc.weapon.Tf2Weapons;
 import io.netty.channel.embedded.EmbeddedChannel;
 
@@ -35,6 +37,7 @@ import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.fabricmc.loader.api.FabricLoader;
 
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.Connection;
@@ -46,6 +49,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -560,10 +564,12 @@ public class Tf2McGameTest {
 			standIn(helper, player, large);
 			check(!available(helper, large) && !player.isOnFire(), "аптечка не потушила горящего игрока");
 
-			// Средние патроны: 50% запаса ракетницы (20) = 10; обойму не трогают.
+			// Средние патроны: 50% запаса каждого оружия, у ракетницы (20) это 10, у дробовика (32) — 16; обойму не трогают.
 			run(server.createCommandSourceStack(), "ammo set 5 " + name);
+			Shotgun.WEAPON.changeReserve(player, 0, false);
 			standIn(helper, player, ammo);
 			checkAmmo(player, 4, 15, "после средних патронов");
+			checkAmmo(Shotgun.WEAPON, player, 6, 16, "дробовика после средних патронов");
 			level.getBlockState(helper.absolutePos(ammo)).tick(level, helper.absolutePos(ammo), level.getRandom());
 			standIn(helper, player, ammo);
 			checkAmmo(player, 4, 20, "запас выше наибольшего");
@@ -608,6 +614,7 @@ public class Tf2McGameTest {
 			player.setHealth(50.0f);
 			player.setRemainingFireTicks(100);
 			run(server.createCommandSourceStack(), "ammo set 0 " + name);
+			Shotgun.WEAPON.changeReserve(player, 0, false);
 			// Ракетница только что выдана: сначала она 0,5 с достаётся.
 			tickLauncher(server, 10);
 			check(RocketLauncher.fire(player), "выстрел перед пополнением не прошёл");
@@ -623,6 +630,7 @@ public class Tf2McGameTest {
 			check(player.getHealth() == 200.0f, "здоровье после шкафа: " + player.getHealth());
 			check(!player.isOnFire(), "шкаф не потушил огонь");
 			checkAmmo(player, 4, 20, "после шкафа");
+			checkAmmo(Shotgun.WEAPON, player, 6, 32, "дробовика после шкафа");
 
 			// Свой выбор класса запоминается и применяется у шкафа.
 			run(player.createCommandSourceStack(), "class vanilla");
@@ -1039,6 +1047,122 @@ public class Tf2McGameTest {
 		helper.succeed();
 	}
 
+	// Шаг 13а: дробовик. 10 дробин по 6 урона, множитель расстояния от 1,5 в упор до 0,528 вдали.
+	@GameTest
+	public void shotgunDamageFallsOffWithDistance(GameTestHelper helper) {
+		MinecraftServer server = helper.getLevel().getServer();
+		String name = "tf2mc-shotgun-a";
+		String targetName = "tf2mc-shotgun-b";
+		ServerPlayer shooter = joinTestPlayer(helper, name);
+		ServerPlayer target = joinTestPlayer(helper, targetName);
+		// Высоко над площадкой: на линии огня нет блоков и игроков из соседних тестов.
+		Vec3 shooterSpot = helper.absoluteVec(new Vec3(1.5, 12.0, 1.5));
+
+		try {
+			for (ServerPlayer player : new ServerPlayer[] {shooter, target}) {
+				player.connection.handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
+				player.setGameMode(GameType.SURVIVAL);
+			}
+
+			run(server.createCommandSourceStack(), "class soldier " + name);
+			run(server.createCommandSourceStack(), "class soldier " + targetName);
+			run(server.createCommandSourceStack(), "team red " + name);
+			run(server.createCommandSourceStack(), "team blu " + targetName);
+			check(shooter.getInventory().contains(stack -> stack.is(Shotgun.ITEM)), "дробовик не выдан вместе с классом");
+			checkAmmo(Shotgun.WEAPON, shooter, 6, 32, "дробовика после выдачи класса");
+			select(shooter, Shotgun.ITEM);
+			check(Tf2Weapons.held(shooter).orElse(null) == Shotgun.WEAPON, "дробовик в руке не опознан");
+
+			// Дробовик достаётся 0,5 с.
+			check(!Shotgun.WEAPON.fire(shooter), "выстрел прошёл, пока дробовик доставался");
+			tickWeapons(server, 10);
+
+			// В двух блоках (90 u) все дробины попадают: 60 × (1,5 − 0,5 × 90 / 512) = 84,73.
+			shooter.setPos(shooterSpot);
+			target.setPos(shooterSpot.add(0.0, 0.0, 2.0));
+			shooter.lookAt(EntityAnchorArgument.Anchor.EYES, target.getEyePosition());
+			check(Shotgun.WEAPON.fire(shooter), "выстрел вблизи не прошёл");
+			checkNear("здоровье после выстрела в двух блоках", 200.0 - 84.73, target.getHealth(), 0.05);
+			checkAmmo(Shotgun.WEAPON, shooter, 5, 32, "дробовика после выстрела");
+
+			// Пауза между выстрелами 13 тиков (0,625 с).
+			check(!Shotgun.WEAPON.fire(shooter), "второй выстрел прошёл без паузы");
+			tickWeapons(server, 12);
+			check(!Shotgun.WEAPON.fire(shooter), "выстрел прошёл на тик раньше конца паузы");
+			tickWeapons(server, 1);
+
+			// В 25 блоках (1125 u) дробина наносит 6 × 0,528 = 3,168; первая летит точно в прицел,
+			// остальные могут пройти мимо.
+			target.setHealth(200.0f);
+			target.setPos(shooterSpot.add(0.0, 0.0, 25.0));
+			shooter.lookAt(EntityAnchorArgument.Anchor.EYES, target.getEyePosition().add(0.0, -0.3, 0.0));
+			check(Shotgun.WEAPON.fire(shooter), "выстрел вдали не прошёл");
+			double pellets = (200.0 - target.getHealth()) / 3.168;
+			check(pellets > 0.99 && pellets < 10.01 && Math.abs(pellets - Math.round(pellets)) < 0.01,
+					"урон вдали не кратен дробине: " + (200.0 - target.getHealth()));
+
+			// Своя команда не задевается.
+			tickWeapons(server, 13);
+			target.setHealth(200.0f);
+			target.setPos(shooterSpot.add(0.0, 0.0, 2.0));
+			run(server.createCommandSourceStack(), "team red " + targetName);
+			shooter.lookAt(EntityAnchorArgument.Anchor.EYES, target.getEyePosition());
+			check(Shotgun.WEAPON.fire(shooter), "выстрел по своему не прошёл");
+			check(target.getHealth() == 200.0f, "дробь ранила игрока своей команды: " + target.getHealth());
+
+			// После паузы выстрела перезарядка: первый патрон за 20 тиков, следующие по 10.
+			checkAmmo(Shotgun.WEAPON, shooter, 3, 32, "дробовика после трёх выстрелов");
+			tickWeapons(server, 13 + 19);
+			checkAmmo(Shotgun.WEAPON, shooter, 3, 32, "дробовика за тик до первого патрона");
+			tickWeapons(server, 1);
+			checkAmmo(Shotgun.WEAPON, shooter, 4, 31, "дробовика после первого патрона");
+			tickWeapons(server, 10);
+			checkAmmo(Shotgun.WEAPON, shooter, 5, 30, "дробовика после второго патрона");
+
+			// Команды боезапаса меняют оружие в руке; ракетница не тронута.
+			run(server.createCommandSourceStack(), "ammo set 7 " + name);
+			checkAmmo(Shotgun.WEAPON, shooter, 5, 7, "дробовика после ammo set");
+			checkAmmo(shooter, 4, 20, "ракетницы после ammo set для дробовика");
+
+			// Снятие класса забирает оба оружия.
+			run(server.createCommandSourceStack(), "class vanilla " + name);
+			check(!shooter.getInventory().contains(stack -> stack.is(Shotgun.ITEM)), "дробовик остался после снятия класса");
+			check(Shotgun.WEAPON.ammo(shooter) == null, "боезапас дробовика остался после снятия класса");
+		} finally {
+			for (ServerPlayer player : new ServerPlayer[] {shooter, target}) {
+				run(server.createCommandSourceStack(), "class vanilla " + player.getScoreboardName());
+				server.getScoreboard().removePlayerFromTeam(player.getScoreboardName());
+				server.getPlayerList().remove(player);
+			}
+		}
+
+		helper.succeed();
+	}
+
+	private static void select(ServerPlayer player, Item item) {
+		for (int slot = 0; slot < 9; slot++) {
+			if (player.getInventory().getItem(slot).is(item)) {
+				player.getInventory().setSelectedSlot(slot);
+			}
+		}
+
+		check(player.getMainHandItem().is(item), item + " не на панели быстрого доступа");
+	}
+
+	private static void tickWeapons(MinecraftServer server, int ticks) {
+		for (int i = 0; i < ticks; i++) {
+			Tf2Weapons.CLIP_WEAPONS.forEach(weapon -> weapon.tick(server));
+		}
+	}
+
+	private static void checkAmmo(ClipWeapon weapon, ServerPlayer player, int clip, int reserve, String when) {
+		ClipWeapon.Ammo ammo = weapon.ammo(player);
+
+		if (ammo == null || ammo.clip() != clip || ammo.reserve() != reserve) {
+			throw new IllegalStateException("боезапас " + when + ": ожидалось " + clip + " / " + reserve + ", получено " + ammo);
+		}
+	}
+
 	private static void tickLauncher(MinecraftServer server, int ticks) {
 		for (int i = 0; i < ticks; i++) {
 			RocketLauncher.tick(server);
@@ -1046,7 +1170,7 @@ public class Tf2McGameTest {
 	}
 
 	private static void checkAmmo(ServerPlayer player, int clip, int reserve, String when) {
-		RocketLauncher.Ammo ammo = RocketLauncher.ammo(player);
+		ClipWeapon.Ammo ammo = RocketLauncher.ammo(player);
 
 		if (ammo == null || ammo.clip() != clip || ammo.reserve() != reserve) {
 			throw new IllegalStateException("боезапас " + when + ": ожидалось " + clip + " / " + reserve + ", получено " + ammo);

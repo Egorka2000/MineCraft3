@@ -21,7 +21,7 @@ import io.github.egorka2000.tf2mc.movement.SpeedometerToggle;
 import io.github.egorka2000.tf2mc.net.Tf2Networking;
 import io.github.egorka2000.tf2mc.team.Teams;
 import io.github.egorka2000.tf2mc.team.TfTeam;
-import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
+import io.github.egorka2000.tf2mc.weapon.ClipWeapon;
 import io.github.egorka2000.tf2mc.weapon.Tf2Weapons;
 
 import net.minecraft.commands.CommandSourceStack;
@@ -286,9 +286,9 @@ public final class Tf2Commands {
 	}
 
 	/**
-	 * {@code /tf2 ammo refill [ник]} заполняет обойму и запас ракетницы, {@code /tf2 ammo set <число> [ник]}
+	 * {@code /tf2 ammo refill [ник]} заполняет обоймы и запасы всего оружия, {@code /tf2 ammo set <число> [ник]}
 	 * выставляет запас, {@code /tf2 ammo add <число> [ник]} прибавляет к нему; отрицательное число
-	 * отнимает. Отладочная команда, только для операторов.
+	 * отнимает. Запас меняется у оружия в руке, а если в руке не оружие с обоймой — у основного. Отладочная команда, только для операторов.
 	 */
 	private static LiteralArgumentBuilder<CommandSourceStack> ammoCommand() {
 		return Commands.literal("ammo")
@@ -303,26 +303,26 @@ public final class Tf2Commands {
 	}
 
 	private static int refillAmmo(CommandSourceStack source, ServerPlayer target) {
-		if (!RocketLauncher.refill(target)) {
-			source.sendFailure(Component.literal("tf2-mc: у игрока нет ракетницы"));
+		if (!Tf2Weapons.refill(target)) {
+			source.sendFailure(Component.literal("tf2-mc: у игрока нет оружия"));
 			return 0;
 		}
 
-		return reportAmmo(source, target, RocketLauncher.ammo(target));
+		return reportAmmo(source, target, Tf2Weapons.ammoTarget(target).ammo(target));
 	}
 
 	private static int changeAmmo(CommandSourceStack source, ServerPlayer target, int amount, boolean add) {
-		RocketLauncher.Ammo ammo = RocketLauncher.changeReserve(target, amount, add);
+		ClipWeapon.Ammo ammo = Tf2Weapons.ammoTarget(target).changeReserve(target, amount, add);
 
 		if (ammo == null) {
-			source.sendFailure(Component.literal("tf2-mc: у игрока нет ракетницы"));
+			source.sendFailure(Component.literal("tf2-mc: у игрока нет этого оружия"));
 			return 0;
 		}
 
 		return reportAmmo(source, target, ammo);
 	}
 
-	private static int reportAmmo(CommandSourceStack source, ServerPlayer target, RocketLauncher.Ammo ammo) {
+	private static int reportAmmo(CommandSourceStack source, ServerPlayer target, ClipWeapon.Ammo ammo) {
 		String whom = describeTarget(source, target);
 		source.sendSuccess(() -> Component.literal("tf2-mc: боезапас " + ammo.clip() + " / " + ammo.reserve() + whom), true);
 		return 1;

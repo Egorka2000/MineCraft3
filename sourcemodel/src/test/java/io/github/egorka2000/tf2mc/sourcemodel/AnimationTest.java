@@ -242,6 +242,26 @@ class AnimationTest {
 		assertTrue(right[1] < -0.5F, "body_yaw > 0 — ствол вправо: " + right[1]);
 	}
 
+	@Test
+	void tinySequenceSoundEventIsRead() {
+		AnimationSet.Sequence idle = AnimationSet.read(TinyModel.animations()).sequence("idle").orElseThrow();
+
+		assertEquals(List.of(new AnimationSet.Event(0.5F, 0, "AE_CL_PLAYSOUND", "Test.Sound")), idle.sounds());
+	}
+
+	@Test
+	void realShotgunArmsPumpAfterFireAndReload() throws IOException {
+		Path file = packDir().resolveSibling("weapons").resolve("c_models").resolve("c_soldier_animations.mdl");
+		assumeTrue(Files.isRegularFile(file), "нет расширительного пака");
+		AnimationSet set = AnimationSet.read(Files.readAllBytes(file));
+
+		// Помпа: сначала назад, потом вперёд — после выстрела и в конце перезарядки.
+		for (String name : List.of("fire", "reload_end")) {
+			List<String> sounds = set.sequence(name).orElseThrow().sounds().stream().map(AnimationSet.Event::options).toList();
+			assertEquals(List.of("Weapon_ShotgunEngineer.Cock_Back", "Weapon_ShotgunEngineer.Cock_Forward"), sounds, name);
+		}
+	}
+
 	private static float[] barrel(AnimationSet set, AnimationSet.Sequence sequence, int bone, float pitch, float yaw) {
 		float[] values = new float[set.parameters().size()];
 		values[set.parameter("body_pitch")] = pitch;
