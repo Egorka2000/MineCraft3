@@ -21,6 +21,7 @@ import io.github.egorka2000.tf2mc.movement.SpeedometerToggle;
 import io.github.egorka2000.tf2mc.net.Tf2Networking;
 import io.github.egorka2000.tf2mc.team.Teams;
 import io.github.egorka2000.tf2mc.team.TfTeam;
+import io.github.egorka2000.tf2mc.weapon.ClipWeapon;
 import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
 import io.github.egorka2000.tf2mc.weapon.Tf2Weapons;
 
@@ -312,7 +313,7 @@ public final class Tf2Commands {
 	}
 
 	private static int changeAmmo(CommandSourceStack source, ServerPlayer target, int amount, boolean add) {
-		RocketLauncher.Ammo ammo = RocketLauncher.changeReserve(target, amount, add);
+		ClipWeapon.Ammo ammo = RocketLauncher.changeReserve(target, amount, add);
 
 		if (ammo == null) {
 			source.sendFailure(Component.literal("tf2-mc: у игрока нет ракетницы"));
@@ -322,7 +323,7 @@ public final class Tf2Commands {
 		return reportAmmo(source, target, ammo);
 	}
 
-	private static int reportAmmo(CommandSourceStack source, ServerPlayer target, RocketLauncher.Ammo ammo) {
+	private static int reportAmmo(CommandSourceStack source, ServerPlayer target, ClipWeapon.Ammo ammo) {
 		String whom = describeTarget(source, target);
 		source.sendSuccess(() -> Component.literal("tf2-mc: боезапас " + ammo.clip() + " / " + ammo.reserve() + whom), true);
 		return 1;

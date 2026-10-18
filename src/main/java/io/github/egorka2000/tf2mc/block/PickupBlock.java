@@ -2,6 +2,7 @@ package io.github.egorka2000.tf2mc.block;
 
 import io.github.egorka2000.tf2mc.clazz.ClassHealth;
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
+import io.github.egorka2000.tf2mc.weapon.ClipWeapon;
 import io.github.egorka2000.tf2mc.weapon.Magazine;
 import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
 import io.github.egorka2000.tf2mc.weapon.Tf2Sounds;
@@ -116,7 +117,7 @@ public final class PickupBlock extends Block implements EntityBlock {
 		}
 
 		// Пока оружие с запасом одно — ракетница. С новым оружием патроны пополнят запас каждого.
-		RocketLauncher.Ammo ammo = RocketLauncher.ammo(player);
+		ClipWeapon.Ammo ammo = RocketLauncher.ammo(player);
 
 		if (ammo == null || ammo.reserve() >= Magazine.Rules.ROCKET_LAUNCHER.reserveSize()) {
 			return false;

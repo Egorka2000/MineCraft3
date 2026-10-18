@@ -25,6 +25,7 @@ import io.github.egorka2000.tf2mc.movement.SpeedometerToggle;
 import io.github.egorka2000.tf2mc.team.TeamSpawns;
 import io.github.egorka2000.tf2mc.team.Teams;
 import io.github.egorka2000.tf2mc.team.TfTeam;
+import io.github.egorka2000.tf2mc.weapon.ClipWeapon;
 import io.github.egorka2000.tf2mc.weapon.RocketBlast;
 import io.github.egorka2000.tf2mc.weapon.RocketEntity;
 import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
@@ -1046,7 +1047,7 @@ public class Tf2McGameTest {
 	}
 
 	private static void checkAmmo(ServerPlayer player, int clip, int reserve, String when) {
-		RocketLauncher.Ammo ammo = RocketLauncher.ammo(player);
+		ClipWeapon.Ammo ammo = RocketLauncher.ammo(player);
 
 		if (ammo == null || ammo.clip() != clip || ammo.reserve() != reserve) {
 			throw new IllegalStateException("боезапас " + when + ": ожидалось " + clip + " / " + reserve + ", получено " + ammo);

@@ -1,6 +1,7 @@
 package io.github.egorka2000.tf2mc.client;
 
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
+import io.github.egorka2000.tf2mc.weapon.ClipWeapon;
 import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
 
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
@@ -89,7 +90,7 @@ public final class HealthHud {
 			return;
 		}
 
-		RocketLauncher.Ammo ammo = RocketLauncher.ammo(player);
+		ClipWeapon.Ammo ammo = RocketLauncher.ammo(player);
 
 		if (ammo == null) {
 			return;

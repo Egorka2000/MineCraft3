@@ -7,6 +7,7 @@ import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
 import io.github.egorka2000.tf2mc.clazz.TfClass;
 import io.github.egorka2000.tf2mc.team.Teams;
 import io.github.egorka2000.tf2mc.team.TfTeam;
+import io.github.egorka2000.tf2mc.weapon.ClipWeapon;
 import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
 import io.github.egorka2000.tf2mc.weapon.Tf2Sounds;
 
@@ -114,7 +115,7 @@ public final class ResupplyBlock extends Block implements EntityBlock {
 				changed = true;
 			}
 
-			RocketLauncher.Ammo before = RocketLauncher.ammo(player);
+			ClipWeapon.Ammo before = RocketLauncher.ammo(player);
 			RocketLauncher.refill(player);
 			changed |= before != null && !before.equals(RocketLauncher.ammo(player));
 		}
