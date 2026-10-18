@@ -36,7 +36,11 @@ public final class ViewModels {
 	public static void onWeaponAction(WeaponAction event, float now) {
 		action = event;
 		actionAt = now;
-		drawing = false;
+
+		// Выстрел прерывает доставание; перезарядка ждёт его конца (см. choose).
+		if (event == WeaponAction.FIRE) {
+			drawing = false;
+		}
 	}
 
 	/**
@@ -58,30 +62,44 @@ public final class ViewModels {
 		return choose(action, now - actionAt, drawing, now - drawAt, now, duration);
 	}
 
-	/** Выбор кадра без состояния: что играть при последнем событии и прошедшем с него времени. */
+	/**
+	 * Выбор кадра без состояния: что играть при последнем событии и прошедшем с него времени.
+	 *
+	 * <p>Сервер начинает перезарядку в тот же тик, когда ракетница снова оказалась в руке, — если
+	 * её прервали, убрав оружие. Тогда доставание не успело бы проиграться: руки сразу прыгнули бы
+	 * в позу перезарядки. Поэтому событие перезарядки, пришедшее во время доставания, играется с
+	 * его конца, как в TF2, где перезарядка ждёт, пока оружие достанут.
+	 *
+	 * @param drawing    ракетницу доставали после последнего выстрела
+	 * @param sinceDraw  сколько секунд прошло с начала доставания
+	 */
 	static Frame choose(WeaponAction action, float sinceAction, boolean drawing, float sinceDraw, float now, ToDoubleFunction<String> duration) {
-		if (drawing && sinceDraw < duration.applyAsDouble(DRAW)) {
+		float draw = (float) duration.applyAsDouble(DRAW);
+
+		if (drawing && sinceDraw < draw) {
 			return once(DRAW, sinceDraw, duration);
 		}
 
-		if (action != null && !drawing) {
+		if (action != null) {
+			float since = drawing ? Math.min(sinceAction, sinceDraw - draw) : sinceAction;
+
 			switch (action) {
 				case FIRE -> {
-					if (sinceAction < duration.applyAsDouble(FIRE)) {
-						return once(FIRE, sinceAction, duration);
+					if (since < duration.applyAsDouble(FIRE)) {
+						return once(FIRE, since, duration);
 					}
 				}
 				case RELOAD_START -> {
 					// Начало короче заряжания первой ракеты: дальше руки продолжают как с любой ракетой.
 					float start = (float) duration.applyAsDouble(RELOAD_START);
-					return sinceAction < start ? once(RELOAD_START, sinceAction, duration) : loop(RELOAD_LOOP, sinceAction - start, duration);
+					return since < start ? once(RELOAD_START, since, duration) : loop(RELOAD_LOOP, since - start, duration);
 				}
 				case RELOAD_LOOP -> {
-					return loop(RELOAD_LOOP, sinceAction, duration);
+					return loop(RELOAD_LOOP, since, duration);
 				}
 				case RELOAD_END -> {
-					if (sinceAction < duration.applyAsDouble(RELOAD_FINISH)) {
-						return once(RELOAD_FINISH, sinceAction, duration);
+					if (since < duration.applyAsDouble(RELOAD_FINISH)) {
+						return once(RELOAD_FINISH, since, duration);
 					}
 				}
 				default -> {

@@ -48,6 +48,25 @@ class ViewModelsTest {
 	}
 
 	@Test
+	void reloadStartedDuringDrawWaitsForIt() {
+		// Ракетницу достали, и сервер в тот же миг начал перезарядку: сначала доигрывается доставание.
+		assertFrame(ViewModels.DRAW, 0.375F, ViewModels.choose(WeaponAction.RELOAD_START, 0.3F, true, 0.3F, 0, DURATION));
+		// Доставание 0,8 с кончилось 0,2 с назад — перезарядка идёт с этого момента: 0,2 из 0,5.
+		assertFrame(ViewModels.RELOAD_START, 0.4F, ViewModels.choose(WeaponAction.RELOAD_START, 1.0F, true, 1.0F, 0, DURATION));
+		// Событие уже после доставания играется как обычно.
+		assertFrame(ViewModels.RELOAD_LOOP, 0.25F, ViewModels.choose(WeaponAction.RELOAD_LOOP, 0.2F, true, 5.0F, 0, DURATION));
+	}
+
+	@Test
+	void fireInterruptsDraw() {
+		ViewModels.frame(false, 9.0F, DURATION);
+		ViewModels.frame(true, 10.0F, DURATION);
+		ViewModels.onWeaponAction(WeaponAction.FIRE, 10.1F);
+
+		assertFrame(ViewModels.FIRE, 0.1F, ViewModels.frame(true, 10.2F, DURATION));
+	}
+
+	@Test
 	void stretchMatchesViewmodelFov() {
 		// tan(35°) / tan(atan(tan(27°)·0,75)) ≈ 0,7002 / 0,3821.
 		assertEquals(1.8325F, ViewModelRenderer.stretch(), 1e-3F);

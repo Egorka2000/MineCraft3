@@ -3,6 +3,7 @@ package io.github.egorka2000.tf2mc.gametest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -416,6 +417,52 @@ public class Tf2McGameTest {
 	}
 
 	// Шаг 12а: точки возрождения команд.
+	// Если у команды несколько точек, после смерти игрок появляется на случайной из них, а не всё
+	// время на одной (жалоба владельца проекта на карте 2fort).
+	@GameTest
+	public void respawnPicksRandomTeamSpawn(GameTestHelper helper) {
+		MinecraftServer server = helper.getLevel().getServer();
+		ServerPlayer player = joinTestPlayer(helper, "tf2mc-random-spawn");
+		// Две точки рядом и две далеко, в незагруженных чанках — как вторая комната возрождения на 2fort.
+		List<BlockPos> spawns = List.of(new BlockPos(1, 1, 1), new BlockPos(3, 1, 1), new BlockPos(1, 1, 300), new BlockPos(3, 1, 300));
+		Set<BlockPos> used = new HashSet<>();
+
+		try {
+			player.connection.handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
+			player.setGameMode(GameType.SURVIVAL);
+
+			for (BlockPos spawn : spawns) {
+				helper.setBlock(spawn, Tf2Blocks.RED_SPAWN);
+			}
+
+			run(player.createCommandSourceStack(), "team red");
+
+			BlockPos last = null;
+
+			for (int death = 0; death < 30; death++) {
+				player = server.getPlayerList().respawn(player, false, Entity.RemovalReason.KILLED);
+				player.connection.player = player;
+				BlockPos spawn = helper.relativePos(player.blockPosition().below());
+				check(!spawn.equals(last), "после смерти игрок снова появился на той же точке " + spawn);
+				used.add(spawn);
+				last = spawn;
+			}
+
+			// За 30 смертей не увидеть хотя бы одну из четырёх точек почти невозможно.
+			check(used.size() == 4, "за 30 смертей игрок появлялся только на точках " + used);
+		} finally {
+			for (BlockPos spawn : spawns) {
+				helper.setBlock(spawn, Blocks.AIR);
+			}
+
+			TeamSpawns.of(server, TfTeam.RED);
+			server.getScoreboard().removePlayerFromTeam(player.getScoreboardName());
+			server.getPlayerList().remove(player);
+		}
+
+		helper.succeed();
+	}
+
 	@GameTest
 	public void teamSpawnPointsPlacePlayers(GameTestHelper helper) {
 		MinecraftServer server = helper.getLevel().getServer();
@@ -561,6 +608,8 @@ public class Tf2McGameTest {
 			player.setHealth(50.0f);
 			player.setRemainingFireTicks(100);
 			run(server.createCommandSourceStack(), "ammo set 0 " + name);
+			// Ракетница только что выдана: сначала она 0,5 с достаётся.
+			tickLauncher(server, 10);
 			check(RocketLauncher.fire(player), "выстрел перед пополнением не прошёл");
 			standAt(helper, player, new Vec3(0.5, 1.0, 0.5));
 			check(player.getHealth() == 50.0f, "шкаф сработал издалека");
@@ -913,6 +962,12 @@ public class Tf2McGameTest {
 			run(server.createCommandSourceStack(), "class soldier " + name);
 			check(player.getInventory().countItem(RocketLauncher.ITEM) == 1, "ракетниц в инвентаре: " + player.getInventory().countItem(RocketLauncher.ITEM));
 
+			// Ракетницу только что взяли в руку: 10 тиков (0,5 с) она достаётся и не стреляет.
+			check(!RocketLauncher.fire(player), "выстрел прошёл, пока ракетница доставалась");
+			tickLauncher(server, 9);
+			check(!RocketLauncher.fire(player), "выстрел прошёл за тик до конца доставания");
+			tickLauncher(server, 1);
+
 			// Выстрел тратит ракету; до конца паузы в 16 тиков второй выстрел невозможен.
 			check(RocketLauncher.fire(player), "первый выстрел не прошёл");
 			checkAmmo(player, 3, 20, "после первого выстрела");
@@ -936,12 +991,14 @@ public class Tf2McGameTest {
 			tickLauncher(server, 1);
 			checkAmmo(player, 1, 19, "после первой ракеты");
 
-			// Ракетница убрана из рук: перезарядка стоит. Снова в руках — начинается заново, с 18 тиков.
+			// Ракетница убрана из рук: перезарядка стоит. Снова в руках — сначала 10 тиков достаётся, потом перезарядка начинается заново, с 18 тиков.
 			int launcherSlot = player.getInventory().getSelectedSlot();
 			player.getInventory().setSelectedSlot((launcherSlot + 1) % 9);
 			tickLauncher(server, 100);
 			checkAmmo(player, 1, 19, "перезарядка шла с ракетницей не в руках");
 			player.getInventory().setSelectedSlot(launcherSlot);
+			tickLauncher(server, 10);
+			checkAmmo(player, 1, 19, "ракета заряжалась, пока ракетница доставалась");
 			tickLauncher(server, 17);
 			checkAmmo(player, 1, 19, "за тик до ракеты после возвращения в руки");
 			tickLauncher(server, 1);
