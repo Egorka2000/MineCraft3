@@ -81,6 +81,29 @@ public class Tf2McGameTest {
 		helper.succeed();
 	}
 
+	// Список точек возрождения потерян (так было при загрузке мира до 0.20.3): загрузка чанка
+	// возвращает в него точки, которые стоят в этом чанке.
+	@GameTest
+	public void lostSpawnListIsRediscovered(GameTestHelper helper) {
+		ServerLevel level = helper.getLevel();
+		MinecraftServer server = level.getServer();
+		BlockPos red = helper.absolutePos(new BlockPos(1, 1, 1));
+
+		try {
+			level.setBlockAndUpdate(red, Tf2Blocks.RED_SPAWN.defaultBlockState());
+			level.removeAttached(TeamSpawns.POSITIONS);
+			check(TeamSpawns.of(server, TfTeam.RED).isEmpty(), "список точек не очистился");
+
+			TeamSpawns.rediscover(level, level.getChunkAt(red));
+			check(TeamSpawns.of(server, TfTeam.RED).stream().anyMatch(spawn -> spawn.block().equals(red)), "точка не вернулась в список при загрузке чанка");
+		} finally {
+			level.setBlockAndUpdate(red, Blocks.AIR.defaultBlockState());
+			TeamSpawns.of(server, TfTeam.RED);
+		}
+
+		helper.succeed();
+	}
+
 	// Дымовой тест: сервер с модом стартует, мод виден загрузчику.
 	@GameTest
 	public void modIsLoadedOnServer(GameTestHelper helper) {

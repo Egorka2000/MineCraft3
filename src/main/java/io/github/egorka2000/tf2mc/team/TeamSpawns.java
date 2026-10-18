@@ -13,13 +13,17 @@ import io.github.egorka2000.tf2mc.block.TeamSpawnBlock;
 
 import net.fabricmc.fabric.api.attachment.v1.AttachmentRegistry;
 import net.fabricmc.fabric.api.attachment.v1.AttachmentType;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.SectionPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -41,6 +45,42 @@ public final class TeamSpawns {
 	private static final Map<UUID, Spawn> LAST = new ConcurrentHashMap<>();
 
 	private TeamSpawns() {
+	}
+
+	/**
+	 * Вызывается при запуске мода. Тип данных {@link #POSITIONS} должен быть известен Fabric до
+	 * загрузки мира: иначе сохранённый список точек при загрузке выбрасывается («unknown attachment
+	 * type»), и игроки возрождаются не на своих точках. При загрузке чанка точки, которых нет в
+	 * списке, дописываются: так список восстанавливается после такой потери и на картах, где блоки
+	 * поставлены не руками (структуры, схематики).
+	 */
+	public static void register() {
+		ServerChunkEvents.CHUNK_LOAD.register((level, chunk, generated) -> rediscover(level, chunk));
+	}
+
+	/** Дописывает в список точки возрождения из чанка, которых там нет. Открыт для тестов. */
+	public static void rediscover(ServerLevel level, LevelChunk chunk) {
+		LevelChunkSection[] sections = chunk.getSections();
+
+		for (int index = 0; index < sections.length; index++) {
+			LevelChunkSection section = sections[index];
+
+			if (section.hasOnlyAir() || !section.maybeHas(state -> state.getBlock() instanceof TeamSpawnBlock)) {
+				continue;
+			}
+
+			int baseY = SectionPos.sectionToBlockCoord(chunk.getSectionYFromSectionIndex(index));
+
+			for (int y = 0; y < SectionPos.SECTION_SIZE; y++) {
+				for (int z = 0; z < SectionPos.SECTION_SIZE; z++) {
+					for (int x = 0; x < SectionPos.SECTION_SIZE; x++) {
+						if (section.getBlockState(x, y, z).getBlock() instanceof TeamSpawnBlock) {
+							add(level, new BlockPos(chunk.getPos().getMinBlockX() + x, baseY + y, chunk.getPos().getMinBlockZ() + z));
+						}
+					}
+				}
+			}
+		}
 	}
 
 	/** Точка возрождения: мир и блок, на котором появляется игрок. */
