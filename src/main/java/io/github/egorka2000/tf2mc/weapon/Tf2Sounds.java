@@ -25,6 +25,12 @@ public final class Tf2Sounds {
 	/** В обойму ракетницы заряжена ракета. */
 	public static final SoundEvent ROCKET_LAUNCHER_RELOAD = register("weapon_rpg.reload");
 
+	/** Выстрел из дробовика. */
+	public static final SoundEvent SHOTGUN_SHOOT = register("weapon_shotgun.single");
+
+	/** В дробовик заряжен патрон. */
+	public static final SoundEvent SHOTGUN_RELOAD = register("weapon_shotgun.reload");
+
 	/** Взрыв ракеты. */
 	public static final SoundEvent ROCKET_EXPLODE = register("baseexplosioneffect.sound");
 

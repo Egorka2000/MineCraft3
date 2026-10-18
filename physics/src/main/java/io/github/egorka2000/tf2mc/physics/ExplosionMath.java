@@ -43,6 +43,9 @@ public final class ExplosionMath {
 	/** Множитель урона ракеты в упор. */
 	public static final double RANGE_NEAR = 1.25;
 
+	/** Множитель урона пули в упор (дробовик). */
+	public static final double RANGE_NEAR_BULLET = 1.5;
+
 	/** Множитель урона ракеты на удвоенном среднем расстоянии и дальше. */
 	public static final double RANGE_FAR = 0.528;
 
@@ -102,12 +105,23 @@ public final class ExplosionMath {
 	 * @param distance расстояние от стрелка до цели, u
 	 */
 	public static double rangeMultiplier(double distance) {
+		return rangeMultiplier(distance, RANGE_NEAR);
+	}
+
+	/**
+	 * Множитель урона по расстоянию с другим множителем в упор: у пуль, например у дробовика,
+	 * он {@link #RANGE_NEAR_BULLET}. На {@link #RANGE_MIDDLE} и дальше — как у ракеты.
+	 *
+	 * @param distance расстояние от стрелка до цели, u
+	 * @param near     множитель в упор
+	 */
+	public static double rangeMultiplier(double distance, double near) {
 		if (distance <= 0.0) {
-			return RANGE_NEAR;
+			return near;
 		}
 
 		if (distance <= RANGE_MIDDLE) {
-			return RANGE_NEAR + (1.0 - RANGE_NEAR) * distance / RANGE_MIDDLE;
+			return near + (1.0 - near) * distance / RANGE_MIDDLE;
 		}
 
 		if (distance >= RANGE_MIDDLE * 2.0) {

@@ -4,8 +4,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 import com.mojang.blaze3d.platform.NativeImage;
@@ -181,10 +183,14 @@ public final class SourceModels {
 	}
 
 	/**
-	 * Персонаж: тело, анимации (если в паке есть файл анимаций) и оружие в руках (если есть его
-	 * модель; оружию нужны анимации тела, чтобы знать, где руки).
+	 * Персонаж: тело, анимации (если в паке есть файл анимаций) и оружие в руках по пути к модели
+	 * (то, чья модель есть в паке; оружию нужны анимации тела, чтобы знать, где руки).
 	 */
-	public record PlayerMesh(SkinnedMesh body, Optional<AnimationSet> animations, Optional<SkinnedMesh> weapon) {
+	public record PlayerMesh(SkinnedMesh body, Optional<AnimationSet> animations, Map<String, SkinnedMesh> weapons) {
+		/** Модель оружия по пути к ней; пусто, если её нет. */
+		public Optional<SkinnedMesh> weapon(String model) {
+			return Optional.ofNullable(weapons.get(model));
+		}
 	}
 
 	/** Неподвижный предмет: модель и её вершины, посчитанные один раз ({@link SkinnedMesh#still}). */
@@ -197,13 +203,13 @@ public final class SourceModels {
 	/**
 	 * Читает персонажа из ресурсов и регистрирует текстуры.
 	 *
-	 * @param weapon        модель оружия в руках, например {@link #ROCKET_LAUNCHER}
+	 * @param weapons       модели оружия в руках, например {@link #ROCKET_LAUNCHER}
 	 * @param unitsPerBlock масштаб: сколько единиц TF2 в блоке
 	 * @param textures      сюда добавляются имена зарегистрированных текстур, чтобы при следующей
 	 *                      перезагрузке их освободить
 	 * @return пусто, если модели в ресурсах нет (пак не подключён) или она не читается
 	 */
-	public static Optional<PlayerMesh> load(ResourceManager resources, TextureManager textureManager, String model, String weapon,
+	public static Optional<PlayerMesh> load(ResourceManager resources, TextureManager textureManager, String model, List<String> weapons,
 			double unitsPerBlock, List<Identifier> textures) {
 		float scale = (float) (1.0 / unitsPerBlock);
 		Optional<byte[]> mdl = read(resources, model + ".mdl");
@@ -214,8 +220,15 @@ public final class SourceModels {
 		}
 
 		Optional<AnimationSet> animations = Optional.ofNullable(animations(resources, StudioModel.read(mdl.get()), model));
-		Optional<SkinnedMesh> weaponMesh = animations.isPresent() ? mesh(resources, textureManager, weapon, scale, textures) : Optional.empty();
-		return Optional.of(new PlayerMesh(body.get(), animations, weaponMesh));
+		Map<String, SkinnedMesh> weaponMeshes = new HashMap<>();
+
+		if (animations.isPresent()) {
+			for (String weapon : weapons) {
+				mesh(resources, textureManager, weapon, scale, textures).ifPresent(mesh -> weaponMeshes.put(weapon, mesh));
+			}
+		}
+
+		return Optional.of(new PlayerMesh(body.get(), animations, Map.copyOf(weaponMeshes)));
 	}
 
 	/** Предмет со своими анимациями внутри того же файла MDL: аптечки, патроны, шкаф пополнения. */

@@ -37,6 +37,15 @@ class ExplosionMathTest {
 	}
 
 	@Test
+	void bulletRangeMultiplierMatchesShotgunTable() {
+		// TF2 Wiki, Shotgun: дробина 6 урона — 9 в упор, 6 на среднем, 3,168 вдали.
+		assertEquals(9.0, 6.0 * ExplosionMath.rangeMultiplier(0.0, ExplosionMath.RANGE_NEAR_BULLET), 1e-9);
+		assertEquals(6.0, 6.0 * ExplosionMath.rangeMultiplier(512.0, ExplosionMath.RANGE_NEAR_BULLET), 1e-9);
+		assertEquals(3.168, 6.0 * ExplosionMath.rangeMultiplier(1024.0, ExplosionMath.RANGE_NEAR_BULLET), 1e-9);
+		assertEquals(1.25, ExplosionMath.rangeMultiplier(256.0, ExplosionMath.RANGE_NEAR_BULLET), 1e-9);
+	}
+
+	@Test
 	void rangeMultiplierIsLinearBetweenPoints() {
 		assertEquals(1.125, ExplosionMath.rangeMultiplier(256.0), 1e-9);
 		assertEquals(0.764, ExplosionMath.rangeMultiplier(768.0), 1e-9);

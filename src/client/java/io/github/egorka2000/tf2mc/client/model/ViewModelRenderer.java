@@ -9,7 +9,6 @@ import io.github.egorka2000.tf2mc.sourcemodel.AnimationSet;
 import io.github.egorka2000.tf2mc.sourcemodel.Pose;
 import io.github.egorka2000.tf2mc.team.Teams;
 import io.github.egorka2000.tf2mc.team.TfTeam;
-import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
 
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -20,7 +19,7 @@ import net.minecraft.client.renderer.state.level.PlayerRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 
 /**
- * Руки Soldier с ракетницей от первого лица из расширительного пака вместо руки Стива.
+ * Руки Soldier с оружием мода от первого лица из расширительного пака вместо руки Стива.
  *
  * <p>Модель рук TF2 стоит началом координат в глазах игрока и смотрит по оси x Source — так же,
  * как модель персонажа после анимации, поэтому годится тот же перевод в оси Minecraft. TF2 рисует
@@ -35,7 +34,7 @@ public final class ViewModelRenderer {
 	}
 
 	/**
-	 * Рисует руки TF2, если игрок с классом держит ракетницу и в паке есть руки с анимациями.
+	 * Рисует руки TF2, если игрок с классом держит оружие мода и в паке есть руки с анимациями и модель этого оружия.
 	 *
 	 * @return нарисованы ли руки: тогда руку Стива и предмет игра не рисует
 	 */
@@ -49,12 +48,12 @@ public final class ViewModelRenderer {
 			return false;
 		}
 
-		boolean holding = hands.mainHandItem.is(RocketLauncher.ITEM);
+		WeaponView view = WeaponViews.of(hands.mainHandItem).filter(held -> model.get().weapon(held.model()).isPresent()).orElse(null);
 		float now = (player.tickCount + partialTicks) / 20.0F;
 		AnimationSet set = model.get().animations().orElseThrow();
-		ViewModels.Frame frame = ViewModels.frame(holding, now, name -> duration(set, name));
+		ViewModels.Frame frame = ViewModels.frame(view, now, name -> duration(set, name));
 
-		if (!holding) {
+		if (frame == null) {
 			return false;
 		}
 
@@ -65,7 +64,7 @@ public final class ViewModelRenderer {
 		}
 
 		SourceModels.SkinnedMesh arms = model.get().body();
-		SourceModels.SkinnedMesh weapon = model.get().weapon().orElseThrow();
+		SourceModels.SkinnedMesh weapon = model.get().weapon(view.model()).orElseThrow();
 		Pose pose = set.sampleWithLayers(sequence.get(), frame.cycle(), new float[set.parameters().size()]);
 		float[] world = pose.worldMatrices(arms.bones());
 		int family = Teams.get(player).orElse(TfTeam.RED) == TfTeam.BLU ? SourceModels.BLU : SourceModels.RED;

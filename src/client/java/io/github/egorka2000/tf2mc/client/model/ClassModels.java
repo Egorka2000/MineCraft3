@@ -81,10 +81,11 @@ public final class ClassModels {
 		rocket = SourceModels.loadMesh(resources, textureManager, SourceModels.ROCKET, Tf2Mc.config().current().unitsPerBlock(), sourceTextures)
 				.map(SourceModels.Prop::new);
 		// Руки без анимаций не нужны: в паке до 2026-10-17 файла анимаций рук нет.
-		viewModel = SourceModels.load(resources, textureManager, SourceModels.SOLDIER_ARMS, SourceModels.ROCKET_LAUNCHER,
-				Tf2Mc.config().current().unitsPerBlock(), sourceTextures).filter(arms -> arms.animations().isPresent() && arms.weapon().isPresent());
+		List<String> weapons = WeaponViews.ALL.stream().map(WeaponView::model).toList();
+		viewModel = SourceModels.load(resources, textureManager, SourceModels.SOLDIER_ARMS, weapons,
+				Tf2Mc.config().current().unitsPerBlock(), sourceTextures).filter(arms -> arms.animations().isPresent() && !arms.weapons().isEmpty());
 		Optional<SourceModels.PlayerMesh> soldier = SourceModels.load(
-				resources, textureManager, SourceModels.SOLDIER, SourceModels.ROCKET_LAUNCHER, Tf2Mc.config().current().unitsPerBlock(), sourceTextures);
+				resources, textureManager, SourceModels.SOLDIER, weapons, Tf2Mc.config().current().unitsPerBlock(), sourceTextures);
 
 		if (soldier.isPresent()) {
 			renderer = new SourcePlayerRenderer(context, soldier.get());

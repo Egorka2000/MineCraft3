@@ -25,4 +25,14 @@ class PlayerAnimationsTest {
 		// Конца перезарядки в воде у TF2 нет.
 		assertNull(PlayerAnimations.gestureName(WeaponAction.RELOAD_END, Posture.SWIM));
 	}
+
+	@Test
+	void secondaryWeaponUsesItsOwnNames() {
+		assertEquals("AttackStand_SECONDARY", PlayerAnimations.gestureName(WeaponAction.FIRE, Posture.STAND, WeaponView.SECONDARY));
+		assertEquals("AttackSwim_SECONDARY", PlayerAnimations.gestureName(WeaponAction.FIRE, Posture.SWIM, WeaponView.SECONDARY));
+		assertEquals("ReloadCrouch_SECONDARY_loop", PlayerAnimations.gestureName(WeaponAction.RELOAD_LOOP, Posture.CROUCH, WeaponView.SECONDARY));
+		assertEquals("SECONDARY_reload_airwalk", PlayerAnimations.gestureName(WeaponAction.RELOAD_START, Posture.AIR, WeaponView.SECONDARY));
+		// У второго оружия в воде есть и повтор, и конец.
+		assertEquals("SECONDARY_reload_swim_end", PlayerAnimations.gestureName(WeaponAction.RELOAD_END, Posture.SWIM, WeaponView.SECONDARY));
+	}
 }

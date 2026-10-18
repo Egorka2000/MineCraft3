@@ -17,6 +17,24 @@
 			}
 		]
 	},
+	"weapon_shotgun.single": {
+		"subtitle": "subtitles.tf2mc.weapon_shotgun.single",
+		"sounds": [
+			{
+				"name": "minecraft:item.crossbow.shoot",
+				"type": "event"
+			}
+		]
+	},
+	"weapon_shotgun.reload": {
+		"subtitle": "subtitles.tf2mc.weapon_shotgun.reload",
+		"sounds": [
+			{
+				"name": "minecraft:item.crossbow.loading_middle",
+				"type": "event"
+			}
+		]
+	},
 	"baseexplosioneffect.sound": {
 		"subtitle": "subtitles.tf2mc.baseexplosioneffect.sound",
 		"sounds": [
