@@ -765,10 +765,26 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			selectWeapon(context, Shotgun.ITEM);
 			context.waitTicks(20);
 			context.takeScreenshot("tf2mc-real-model-shotgun-first-person");
+			// После выстрела руки передёргивают помпу: звуки из событий анимации рук TF2.
+			List<SoundInstance> played = new CopyOnWriteArrayList<>();
+			SoundEventListener listener = (sound, events, range) -> played.add(sound);
+			context.runOnClient(client -> client.getSoundManager().addListener(listener));
+			context.runOnClient(client -> client.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F)));
+			boolean soundWorks = !played.isEmpty();
 			context.getInput().pressKey(options -> options.keyUse);
 			context.waitTicks(3);
 			context.takeScreenshot("tf2mc-real-model-shotgun-first-person-fire");
 			context.waitTicks(20);
+			context.runOnClient(client -> client.getSoundManager().removeListener(listener));
+
+			if (soundWorks) {
+				for (String pump : List.of("weapon_shotgunengineer.cock_back", "weapon_shotgunengineer.cock_forward")) {
+					if (played.stream().noneMatch(sound -> sound.getIdentifier().equals(Tf2Mc.id(pump)))) {
+						throw new AssertionError("после выстрела не прозвучал звук помпы " + pump);
+					}
+				}
+			}
+
 			context.takeScreenshot("tf2mc-real-model-shotgun-first-person-reload");
 			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_FRONT));
 			context.waitTicks(40);
@@ -778,6 +794,16 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			context.takeScreenshot("tf2mc-real-model-shotgun-fire");
 			context.waitTicks(20);
 			context.takeScreenshot("tf2mc-real-model-shotgun-reload");
+			context.waitTicks(40);
+
+			// Дробь в землю перед собой: крошка блока в местах попадания.
+			context.runOnClient(client -> client.options.setCameraType(CameraType.FIRST_PERSON));
+			context.runOnClient(client -> client.player.setXRot(45.0F));
+			context.waitTicks(5);
+			context.getInput().pressKey(options -> options.keyUse);
+			context.waitTicks(2);
+			context.takeScreenshot("tf2mc-real-model-shotgun-impact");
+			context.runOnClient(client -> client.player.setXRot(0.0F));
 			context.waitTicks(40);
 			selectRocketLauncher(context);
 			context.runOnClient(client -> client.options.setCameraType(CameraType.FIRST_PERSON));

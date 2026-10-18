@@ -1,14 +1,18 @@
 package io.github.egorka2000.tf2mc.client.model;
 
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
+import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
 import io.github.egorka2000.tf2mc.sourcemodel.AnimationSet;
 import io.github.egorka2000.tf2mc.sourcemodel.Pose;
 import io.github.egorka2000.tf2mc.team.Teams;
 import io.github.egorka2000.tf2mc.team.TfTeam;
+import io.github.egorka2000.tf2mc.weapon.Tf2Sounds;
 
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -17,6 +21,10 @@ import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.state.level.FirstPersonHandsAndItemsRenderState;
 import net.minecraft.client.renderer.state.level.PlayerRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.resources.sounds.EntityBoundSoundInstance;
+import net.minecraft.resources.Identifier;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundSource;
 
 /**
  * Руки Soldier с оружием мода от первого лица из расширительного пака вместо руки Стива.
@@ -30,7 +38,25 @@ public final class ViewModelRenderer {
 	/** Угол обзора рук TF2 по умолчанию, градусы. Источник — docs/05-sources.md. */
 	static final double VIEWMODEL_FOV = 54.0;
 
+	private static final ViewModelSounds SOUNDS = new ViewModelSounds();
+
 	private ViewModelRenderer() {
+	}
+
+	/**
+	 * Звук из анимации рук (помпа дробовика, доставание оружия) — по имени TF2, только самому
+	 * игроку. Звучит, только если пак принёс звук с этим именем.
+	 */
+	private static void play(Minecraft minecraft, LocalPlayer player, String name) {
+		Identifier id = Tf2Mc.id(name.toLowerCase(Locale.ROOT));
+
+		// Звуки заряжания играет сервер, когда патрон попал в обойму: из анимации рук они прозвучали бы дважды.
+		if (Set.of(Tf2Sounds.ROCKET_LAUNCHER_RELOAD.location(), Tf2Sounds.SHOTGUN_RELOAD.location()).contains(id) || minecraft.getSoundManager().getSoundEvent(id) == null) {
+			return;
+		}
+
+		minecraft.getSoundManager().play(new EntityBoundSoundInstance(SoundEvent.createVariableRangeEvent(id), SoundSource.PLAYERS, 1.0F, 1.0F,
+				player, player.getRandom().nextLong()));
 	}
 
 	/**
@@ -52,12 +78,11 @@ public final class ViewModelRenderer {
 		float now = (player.tickCount + partialTicks) / 20.0F;
 		AnimationSet set = model.get().animations().orElseThrow();
 		ViewModels.Frame frame = ViewModels.frame(view, now, name -> duration(set, name));
+		Optional<AnimationSet.Sequence> sequence = frame == null ? Optional.empty() : set.sequence(frame.sequence());
 
-		if (frame == null) {
-			return false;
+		for (AnimationSet.Event event : SOUNDS.advance(sequence.orElse(null), frame == null ? 0.0F : frame.cycle())) {
+			play(minecraft, player, event.options());
 		}
-
-		Optional<AnimationSet.Sequence> sequence = set.sequence(frame.sequence());
 
 		if (sequence.isEmpty()) {
 			return false;

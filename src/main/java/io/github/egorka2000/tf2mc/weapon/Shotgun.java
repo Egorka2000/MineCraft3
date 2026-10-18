@@ -1,7 +1,9 @@
 package io.github.egorka2000.tf2mc.weapon;
 
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.movement.UnitConversion;
@@ -9,15 +11,22 @@ import io.github.egorka2000.tf2mc.physics.ExplosionMath;
 import io.github.egorka2000.tf2mc.physics.PelletSpread;
 import io.github.egorka2000.tf2mc.team.Teams;
 
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.BlockParticleOption;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -66,27 +75,45 @@ public final class Shotgun {
 		Vec3 up = right.cross(forward).normalize();
 		double range = RANGE / unitsPerBlock;
 		Map<LivingEntity, Double> damage = new LinkedHashMap<>();
+		Set<BlockPos> struck = new HashSet<>();
 
 		for (double[] offset : PelletSpread.offsets(PELLETS, SPREAD, player.getRandom()::nextDouble)) {
 			Vec3 direction = forward.add(right.scale(offset[0])).add(up.scale(offset[1])).normalize();
-			LivingEntity target = trace(level, player, eye, eye.add(direction.scale(range)));
+			HitResult hit = trace(level, player, eye, eye.add(direction.scale(range)));
 
-			if (target != null) {
+			if (hit instanceof EntityHitResult entityHit && entityHit.getEntity() instanceof LivingEntity target) {
 				double distance = UnitConversion.toUnits(player.distanceTo(target), unitsPerBlock);
 				damage.merge(target, PELLET_DAMAGE * ExplosionMath.rangeMultiplier(distance, ExplosionMath.RANGE_NEAR_BULLET), Double::sum);
+			} else if (hit instanceof BlockHitResult blockHit && hit.getType() == HitResult.Type.BLOCK) {
+				impact(level, blockHit, struck.add(blockHit.getBlockPos()));
 			}
 		}
 
 		damage.forEach((target, amount) -> target.hurtServer(level, level.damageSources().source(Tf2Weapons.BULLET, player, player), amount.floatValue()));
 	}
 
-	/** Первая живая цель на луче до блока; {@code null} — дробина ушла в блок или в никуда. */
-	private static LivingEntity trace(ServerLevel level, ServerPlayer shooter, Vec3 from, Vec3 to) {
-		HitResult block = level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, shooter));
+	/**
+	 * Дробина попала в блок: крошка блока в точке попадания и звук удара по его материалу, как
+	 * следы пуль в TF2. Звук — один на блок, даже если в него попало несколько дробин.
+	 */
+	private static void impact(ServerLevel level, BlockHitResult hit, boolean sound) {
+		BlockState state = level.getBlockState(hit.getBlockPos());
+		Vec3 at = hit.getLocation();
+		level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, state), at.x, at.y, at.z, 4, 0.05, 0.05, 0.05, 0.1);
+
+		if (sound) {
+			SoundType type = state.getSoundType();
+			level.playSound(null, at.x, at.y, at.z, type.getHitSound(), SoundSource.PLAYERS, type.getVolume(), type.getPitch());
+		}
+	}
+
+	/** Что встретила дробина: первая живая цель до блока, блок или ничего. */
+	private static HitResult trace(ServerLevel level, ServerPlayer shooter, Vec3 from, Vec3 to) {
+		BlockHitResult block = level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, shooter));
 		Vec3 end = block.getType() == HitResult.Type.MISS ? to : block.getLocation();
 		EntityHitResult hit = ProjectileUtil.getEntityHitResult(shooter, from, end, new AABB(from, end).inflate(1.0),
 				entity -> canHit(shooter, entity), from.distanceToSqr(end));
-		return hit != null && hit.getEntity() instanceof LivingEntity target ? target : null;
+		return hit != null ? hit : block;
 	}
 
 	/** Дробь не задевает стрелка, наблюдателей и тех, кого он ранить не может: свою команду и нейтральных. */

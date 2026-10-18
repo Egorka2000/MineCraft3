@@ -30,6 +30,9 @@ public final class AnimationSet {
 	public static final int SEQUENCE_POST = 0x0400;
 
 	private static final int AUTO_LAYER_SIZE = 24;
+	private static final int EVENT_SIZE = 80;
+	/** Событие анимации старого вида, у которого нет имени: проиграть звук на клиенте. */
+	private static final int EVENT_CLIENT_SOUND = 5004;
 	/** Глубина вложенных слоёв ограничена: в чужом файле слой мог бы ссылаться сам на себя. */
 	private static final int MAX_LAYER_DEPTH = 4;
 	/** Нарастание и спад силы слоя сглажены кривой 3s² − 2s³. */
@@ -121,9 +124,16 @@ public final class AnimationSet {
 	 * @param boneWeights сила последовательности по костям, 0..1; у жестов для рук — только кости рук
 	 * @param fadeIn      за сколько секунд игра TF2 переходит на эту последовательность
 	 * @param fadeOut     за сколько секунд игра TF2 уходит с неё
+	 * @param events      события в ходе последовательности, по возрастанию доли
 	 */
 	public record Sequence(String name, String activity, int flags, int[] groupSize, int[] parameters,
-			float[] parameterStart, float[] parameterEnd, int[] blends, List<AutoLayer> layers, float[] boneWeights, float fadeIn, float fadeOut) {
+			float[] parameterStart, float[] parameterEnd, int[] blends, List<AutoLayer> layers, float[] boneWeights, float fadeIn, float fadeOut,
+			List<Event> events) {
+		/** Звуки, которые последовательность играет сама, с долей, на которой они звучат. */
+		public List<Event> sounds() {
+			return events.stream().filter(Event::sound).toList();
+		}
+
 		/** Последовательность — поправка к другой позе, а не поза целиком. */
 		public boolean delta() {
 			return (flags & SEQUENCE_DELTA) != 0;
@@ -142,6 +152,21 @@ public final class AnimationSet {
 			int cx = Math.clamp(x, 0, groupSize[0] - 1);
 			int cy = Math.clamp(y, 0, groupSize[1] - 1);
 			return blends[cy * groupSize[0] + cx];
+		}
+	}
+
+	/**
+	 * Событие последовательности: на доле {@code cycle} игра делает что-то помимо позы — например,
+	 * у рук от первого лица играет звук помпы дробовика.
+	 *
+	 * @param event   номер события старого вида; у событий нового вида — 0, а смысл в имени
+	 * @param name    имя события нового вида, например {@code AE_CL_PLAYSOUND}; у старого — пусто
+	 * @param options параметр события: для звука — имя звука TF2
+	 */
+	public record Event(float cycle, int event, String name, String options) {
+		/** Событие проигрывает звук на клиенте. */
+		public boolean sound() {
+			return event == EVENT_CLIENT_SOUND || name.equalsIgnoreCase("AE_CL_PLAYSOUND");
 		}
 	}
 
@@ -220,10 +245,34 @@ public final class AnimationSet {
 			list.add(new Sequence(in.string(at + in.int32(at + 4)), activity == 0 ? "" : in.string(at + activity), in.int32(at + 12), groupSize,
 					new int[] {in.int32(at + 76), in.int32(at + 80)}, new float[] {in.float32(at + 84), in.float32(at + 88)},
 					new float[] {in.float32(at + 92), in.float32(at + 96)}, blends, readLayers(in, at), readBoneWeights(in, at, bones),
-					in.float32(at + 104), in.float32(at + 108)));
+					in.float32(at + 104), in.float32(at + 108), readEvents(in, at)));
 		}
 
 		return List.copyOf(list);
+	}
+
+	/**
+	 * События последовательности. Описание события: доля, номер, вид, параметр (строка в 64 байта),
+	 * смещение имени от начала описания; у событий нового вида номер не задан, а смысл — в имени.
+	 */
+	private static List<Event> readEvents(Bytes in, int sequence) {
+		int count = in.int32(sequence + 24);
+
+		if (count <= 0) {
+			return List.of();
+		}
+
+		int offset = sequence + in.int32(sequence + 28);
+		in.checkArray(offset, count, EVENT_SIZE, "события последовательности");
+		List<Event> events = new ArrayList<>(count);
+
+		for (int i = 0; i < count; i++) {
+			int at = offset + i * EVENT_SIZE;
+			int name = in.int32(at + 76);
+			events.add(new Event(in.float32(at), in.int32(at + 4), name == 0 ? "" : in.string(at + name), in.string(at + 12)));
+		}
+
+		return List.copyOf(events);
 	}
 
 	/** Веса костей последовательности; без списка весов — все 1. */
