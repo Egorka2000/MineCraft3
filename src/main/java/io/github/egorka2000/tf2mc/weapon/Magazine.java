@@ -28,13 +28,14 @@ public record Magazine(int clip, int reserve, int fireCooldown, int reloadTicks,
 	 * @param fireInterval     пауза между выстрелами, тики
 	 * @param firstReloadTicks время заряжания первого патрона, тики
 	 * @param nextReloadTicks  время заряжания каждого следующего, тики
+	 * @param deployTicks      сколько тиков оружие достаётся: до конца нельзя ни стрелять, ни заряжать
 	 */
-	public record Rules(int clipSize, int reserveSize, int fireInterval, int firstReloadTicks, int nextReloadTicks) {
+	public record Rules(int clipSize, int reserveSize, int fireInterval, int firstReloadTicks, int nextReloadTicks, int deployTicks) {
 		/**
 		 * Ракетница Soldier: обойма 4, запас 20, выстрел раз в 0,8 с, первая ракета заряжается
-		 * 0,92 с, следующие по 0,8 с. Источник — docs/05-sources.md.
+		 * 0,92 с, следующие по 0,8 с; достаётся, как всё оружие TF2, за 0,5 с. Источник — docs/05-sources.md.
 		 */
-		public static final Rules ROCKET_LAUNCHER = new Rules(4, 20, 16, 18, 16);
+		public static final Rules ROCKET_LAUNCHER = new Rules(4, 20, 16, 18, 16, 10);
 
 		/** Полная обойма и полный запас. */
 		public Magazine full() {
@@ -92,6 +93,14 @@ public record Magazine(int clip, int reserve, int fireCooldown, int reloadTicks,
 		}
 
 		return new Magazine(clip, reserve, Math.max(0, fireCooldown - 1), 0, 0);
+	}
+
+	/**
+	 * Оружие взяли в руку: пока оно достаётся, нельзя ни стрелять, ни заряжать. Пауза после
+	 * выстрела, если она дольше, сохраняется.
+	 */
+	public Magazine deploy(Rules rules) {
+		return new Magazine(clip, reserve, Math.max(fireCooldown, rules.deployTicks()), 0, 0);
 	}
 
 	/** Запас изменён на заданную величину и обрезан границами от нуля до наибольшего. */

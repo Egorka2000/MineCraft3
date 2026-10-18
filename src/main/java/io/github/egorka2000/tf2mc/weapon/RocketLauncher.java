@@ -1,6 +1,7 @@
 package io.github.egorka2000.tf2mc.weapon;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -81,13 +82,19 @@ public final class RocketLauncher {
 	/** Паузы и ход перезарядки по игрокам. */
 	private static final Map<UUID, Magazine> STATES = new ConcurrentHashMap<>();
 
+	/** У кого ракетница уже в руке. Взятая в руку заново, она сначала достаётся ({@link Magazine#deploy}). */
+	private static final Set<UUID> HELD = ConcurrentHashMap.newKeySet();
+
 	private RocketLauncher() {
 	}
 
 	public static void register() {
 		UseItemCallback.EVENT.register(RocketLauncher::useItem);
 		ServerTickEvents.END_SERVER_TICK.register(RocketLauncher::tick);
-		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> STATES.remove(handler.getPlayer().getUUID()));
+		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+			STATES.remove(handler.getPlayer().getUUID());
+			HELD.remove(handler.getPlayer().getUUID());
+		});
 	}
 
 	/** Выдаёт игроку ракетницу с полным боезапасом; вторую не выдаёт. */
@@ -104,6 +111,7 @@ public final class RocketLauncher {
 		player.getInventory().clearOrCountMatchingItems(stack -> stack.is(ITEM), false, -1, player.inventoryMenu.getCraftSlots());
 		player.removeAttached(AMMO);
 		STATES.remove(player.getUUID());
+		HELD.remove(player.getUUID());
 	}
 
 	/** Обойма и запас игрока; {@code null}, если ракетницы у него нет. */
@@ -118,6 +126,11 @@ public final class RocketLauncher {
 	 */
 	public static boolean fire(ServerPlayer player) {
 		Magazine magazine = state(player);
+
+		if (magazine != null) {
+			magazine = deployIfDrawn(player, magazine);
+			store(player, magazine);
+		}
 
 		if (magazine == null || !magazine.canFire() || PlayerClasses.get(player).isEmpty()) {
 			return false;
@@ -167,7 +180,8 @@ public final class RocketLauncher {
 			Magazine magazine = state(player);
 
 			if (magazine != null) {
-				Magazine next = player.getMainHandItem().is(ITEM) ? magazine.tick(RULES) : magazine.holsteredTick();
+				Magazine drawn = deployIfDrawn(player, magazine);
+				Magazine next = player.getMainHandItem().is(ITEM) ? drawn.tick(RULES) : drawn.holsteredTick();
 
 				store(player, next);
 
@@ -208,6 +222,20 @@ public final class RocketLauncher {
 	 */
 	private static void play(ServerPlayer player, SoundEvent sound) {
 		player.level().playSound(null, player, sound, SoundSource.PLAYERS, 1.0F, 1.0F);
+	}
+
+	/**
+	 * Если ракетницу только что взяли в руку, она сначала достаётся: 0,5 с нельзя ни стрелять,
+	 * ни заряжать, как в TF2. Иначе перезарядка, прерванная тем, что оружие убрали, продолжалась
+	 * бы прямо во время доставания, и ракета появлялась бы в обойме раньше, чем руки её зарядят.
+	 */
+	private static Magazine deployIfDrawn(ServerPlayer player, Magazine magazine) {
+		if (!player.getMainHandItem().is(ITEM)) {
+			HELD.remove(player.getUUID());
+			return magazine;
+		}
+
+		return HELD.add(player.getUUID()) ? magazine.deploy(RULES) : magazine;
 	}
 
 	/** Состояние обоймы игрока; после перезахода восстанавливается по сохранённому боезапасу. */
