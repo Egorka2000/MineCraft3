@@ -2,8 +2,11 @@ package io.github.egorka2000.tf2mc.team;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.block.TeamSpawnBlock;
@@ -16,7 +19,9 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.portal.TeleportTransition;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -31,6 +36,9 @@ public final class TeamSpawns {
 	public static final AttachmentType<List<BlockPos>> POSITIONS = AttachmentRegistry.create(
 			Tf2Mc.id("team_spawns"),
 			builder -> builder.persistent(BlockPos.CODEC.listOf()));
+
+	/** Где каждый игрок появлялся в последний раз; живёт до перезапуска сервера. */
+	private static final Map<UUID, Spawn> LAST = new ConcurrentHashMap<>();
 
 	private TeamSpawns() {
 	}
@@ -84,8 +92,7 @@ public final class TeamSpawns {
 
 	/** Случайная точка команды; пусто, если у команды точек нет. */
 	public static Optional<Spawn> pick(MinecraftServer server, TfTeam team, RandomSource random) {
-		List<Spawn> spawns = of(server, team);
-		return spawns.isEmpty() ? Optional.empty() : Optional.of(spawns.get(random.nextInt(spawns.size())));
+		return SpawnChoice.choose(of(server, team), spawn -> false, null, random);
 	}
 
 	/**
@@ -119,6 +126,16 @@ public final class TeamSpawns {
 	}
 
 	private static Optional<Spawn> spawnFor(ServerPlayer player) {
-		return Teams.get(player).flatMap(team -> pick(player.level().getServer(), team, player.getRandom()));
+		Optional<Spawn> spawn = Teams.get(player).flatMap(team ->
+				SpawnChoice.choose(of(player.level().getServer(), team), other -> occupied(other, player), LAST.get(player.getUUID()), player.getRandom()));
+		spawn.ifPresent(chosen -> LAST.put(player.getUUID(), chosen));
+		return spawn;
+	}
+
+	/** Стоит ли на точке живой игрок, кроме самого возрождающегося. */
+	private static boolean occupied(Spawn spawn, ServerPlayer self) {
+		AABB standing = new AABB(spawn.block().above());
+		return !spawn.level().getEntitiesOfClass(Player.class, standing,
+				other -> other != self && !other.getUUID().equals(self.getUUID()) && other.isAlive() && !other.isSpectator()).isEmpty();
 	}
 }
