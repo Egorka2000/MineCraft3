@@ -16,4 +16,7 @@ public record WeaponView(Item item, String slot, String model, String draw, Stri
 	public static final String PRIMARY = "PRIMARY";
 
 	public static final String SECONDARY = "SECONDARY";
+
+	/** Оружие ближнего боя: перезарядки нет, имена анимаций перезарядки — {@code null}. */
+	public static final String MELEE = "MELEE";
 }

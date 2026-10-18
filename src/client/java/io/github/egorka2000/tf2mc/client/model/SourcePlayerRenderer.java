@@ -76,13 +76,7 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 		classState.weapon = WeaponViews.of(player.getMainHandItem()).orElse(null);
 		classState.holdingWeapon = classState.weapon != null;
 		String slot = classState.weapon != null ? classState.weapon.slot() : WeaponView.PRIMARY;
-		String sequence = switch (posture) {
-			// Плавание смешивается по направлению, как бег; без движения — покачивание на месте.
-			case SWIM -> "swim_" + slot;
-			case AIR -> "jump_float_" + slot;
-			case CROUCH -> (moving ? "crouch_walk_" : "crouch_") + slot;
-			case STAND -> (moving ? "run_" : "stand_") + slot;
-		};
+		String sequence = PlayerAnimations.sequenceName(posture, moving, slot);
 
 		classState.sequence = sequence;
 		classState.previousSequence = null;

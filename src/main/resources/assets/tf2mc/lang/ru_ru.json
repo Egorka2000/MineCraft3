@@ -1,6 +1,7 @@
 {
 	"item.tf2mc.rocket_launcher": "Ракетница",
 	"item.tf2mc.shotgun": "Дробовик",
+	"item.tf2mc.shovel": "Лопата",
 	"entity.tf2mc.rocket": "Ракета",
 	"block.tf2mc.red_spawn": "Точка возрождения RED",
 	"block.tf2mc.blu_spawn": "Точка возрождения BLU",
@@ -23,9 +24,14 @@
 	"subtitles.tf2mc.weapon_rpg.reload": "Ракета заряжена",
 	"subtitles.tf2mc.weapon_shotgun.single": "Выстрел дробовика",
 	"subtitles.tf2mc.weapon_shotgun.reload": "Патрон заряжен",
+	"subtitles.tf2mc.weapon_shovel.miss": "Взмах лопатой",
+	"subtitles.tf2mc.weapon_shovel.hitworld": "Лопата бьёт по блоку",
+	"subtitles.tf2mc.weapon_shovel.hitflesh": "Удар лопатой",
 	"subtitles.tf2mc.baseexplosioneffect.sound": "Взрыв ракеты",
 	"death.attack.tf2mc.blast": "%1$s погиб от взрыва",
 	"death.attack.tf2mc.blast.player": "%1$s взорван игроком %2$s",
 	"death.attack.tf2mc.bullet": "%1$s застрелен",
-	"death.attack.tf2mc.bullet.player": "%1$s застрелен игроком %2$s"
+	"death.attack.tf2mc.bullet.player": "%1$s застрелен игроком %2$s",
+	"death.attack.tf2mc.melee": "%1$s забит насмерть",
+	"death.attack.tf2mc.melee.player": "%1$s забит игроком %2$s"
 }

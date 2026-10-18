@@ -30,6 +30,7 @@ import io.github.egorka2000.tf2mc.weapon.RocketBlast;
 import io.github.egorka2000.tf2mc.weapon.RocketEntity;
 import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
 import io.github.egorka2000.tf2mc.weapon.Shotgun;
+import io.github.egorka2000.tf2mc.weapon.Shovel;
 import io.github.egorka2000.tf2mc.weapon.Tf2Weapons;
 import io.netty.channel.embedded.EmbeddedChannel;
 
@@ -1137,6 +1138,100 @@ public class Tf2McGameTest {
 		}
 
 		helper.succeed();
+	}
+
+	// Шаг 13б: лопата. 65 урона через 0,2 с после замаха, удар раз в 0,8 с, длина 48 u (1,07 блока),
+	// после промаха лучом — куб со стороной 36 u.
+	@GameTest
+	public void shovelHitsUpCloseAfterDelay(GameTestHelper helper) {
+		MinecraftServer server = helper.getLevel().getServer();
+		String name = "tf2mc-shovel-a";
+		String targetName = "tf2mc-shovel-b";
+		ServerPlayer player = joinTestPlayer(helper, name);
+		ServerPlayer target = joinTestPlayer(helper, targetName);
+		Vec3 spot = helper.absoluteVec(new Vec3(1.5, 16.0, 1.5));
+
+		try {
+			for (ServerPlayer each : new ServerPlayer[] {player, target}) {
+				each.connection.handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
+				each.setGameMode(GameType.SURVIVAL);
+			}
+
+			run(server.createCommandSourceStack(), "class soldier " + name);
+			run(server.createCommandSourceStack(), "class soldier " + targetName);
+			run(server.createCommandSourceStack(), "team red " + name);
+			run(server.createCommandSourceStack(), "team blu " + targetName);
+			check(player.getInventory().contains(stack -> stack.is(Shovel.ITEM)), "лопата не выдана вместе с классом");
+			select(player, Shovel.ITEM);
+			player.setPos(spot);
+			player.setYRot(0.0F);
+			player.setXRot(0.0F);
+			target.setPos(spot.add(0.0, 0.0, 0.9));
+
+			// Лопата достаётся 0,5 с.
+			check(!Shovel.WEAPON.swing(player), "замах прошёл, пока лопата доставалась");
+			tickShovel(server, 10);
+
+			// Удар приходит через 4 тика после замаха, не раньше.
+			check(Shovel.WEAPON.swing(player), "замах не прошёл");
+			tickShovel(server, 3);
+			check(target.getHealth() == 200.0f, "удар пришёл раньше задержки");
+			tickShovel(server, 1);
+			checkNear("здоровье после удара лопатой", 200.0 - 65.0, target.getHealth(), 0.01);
+
+			// Следующий замах — через 16 тиков после предыдущего.
+			check(!Shovel.WEAPON.swing(player), "второй замах прошёл без паузы");
+			tickShovel(server, 11);
+			check(!Shovel.WEAPON.swing(player), "замах прошёл на тик раньше конца паузы");
+			tickShovel(server, 1);
+
+			// Цель чуть сбоку: луч мимо, а куб задевает.
+			target.setHealth(200.0f);
+			target.setPos(spot.add(0.6, 0.0, 0.9));
+			check(Shovel.WEAPON.swing(player), "замах по цели сбоку не прошёл");
+			tickShovel(server, 16);
+			checkNear("здоровье после удара сбоку", 200.0 - 65.0, target.getHealth(), 0.01);
+
+			// В двух блоках лопата не достаёт.
+			target.setHealth(200.0f);
+			target.setPos(spot.add(0.0, 0.0, 2.0));
+			check(Shovel.WEAPON.swing(player), "замах по далёкой цели не прошёл");
+			tickShovel(server, 16);
+			check(target.getHealth() == 200.0f, "лопата достала цель в двух блоках");
+
+			// Лопату убрали до удара: удара нет.
+			target.setPos(spot.add(0.0, 0.0, 0.9));
+			check(Shovel.WEAPON.swing(player), "замах перед сменой оружия не прошёл");
+			select(player, Shotgun.ITEM);
+			tickShovel(server, 16);
+			check(target.getHealth() == 200.0f, "удар пришёлся по убранной лопате");
+
+			// Своя команда не задевается.
+			select(player, Shovel.ITEM);
+			tickShovel(server, 10);
+			run(server.createCommandSourceStack(), "team red " + targetName);
+			check(Shovel.WEAPON.swing(player), "замах по своему не прошёл");
+			tickShovel(server, 16);
+			check(target.getHealth() == 200.0f, "лопата ранила игрока своей команды: " + target.getHealth());
+
+			// Снятие класса забирает лопату.
+			run(server.createCommandSourceStack(), "class vanilla " + name);
+			check(!player.getInventory().contains(stack -> stack.is(Shovel.ITEM)), "лопата осталась после снятия класса");
+		} finally {
+			for (ServerPlayer each : new ServerPlayer[] {player, target}) {
+				run(server.createCommandSourceStack(), "class vanilla " + each.getScoreboardName());
+				server.getScoreboard().removePlayerFromTeam(each.getScoreboardName());
+				server.getPlayerList().remove(each);
+			}
+		}
+
+		helper.succeed();
+	}
+
+	private static void tickShovel(MinecraftServer server, int ticks) {
+		for (int i = 0; i < ticks; i++) {
+			Shovel.WEAPON.tick(server);
+		}
 	}
 
 	private static void select(ServerPlayer player, Item item) {
