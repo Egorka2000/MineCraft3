@@ -35,6 +35,33 @@
 			}
 		]
 	},
+	"weapon_shovel.miss": {
+		"subtitle": "subtitles.tf2mc.weapon_shovel.miss",
+		"sounds": [
+			{
+				"name": "minecraft:entity.player.attack.sweep",
+				"type": "event"
+			}
+		]
+	},
+	"weapon_shovel.hitworld": {
+		"subtitle": "subtitles.tf2mc.weapon_shovel.hitworld",
+		"sounds": [
+			{
+				"name": "minecraft:entity.player.attack.nodamage",
+				"type": "event"
+			}
+		]
+	},
+	"weapon_shovel.hitflesh": {
+		"subtitle": "subtitles.tf2mc.weapon_shovel.hitflesh",
+		"sounds": [
+			{
+				"name": "minecraft:entity.player.attack.strong",
+				"type": "event"
+			}
+		]
+	},
 	"baseexplosioneffect.sound": {
 		"subtitle": "subtitles.tf2mc.baseexplosioneffect.sound",
 		"sounds": [

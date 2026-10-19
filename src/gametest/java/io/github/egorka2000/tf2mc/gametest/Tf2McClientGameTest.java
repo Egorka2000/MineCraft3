@@ -30,6 +30,7 @@ import io.github.egorka2000.tf2mc.sourcemodel.TinyModel;
 import io.github.egorka2000.tf2mc.sourcemodel.TinyTexture;
 import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
 import io.github.egorka2000.tf2mc.weapon.Shotgun;
+import io.github.egorka2000.tf2mc.weapon.Shovel;
 import io.github.egorka2000.tf2mc.weapon.WeaponAction;
 
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
@@ -337,7 +338,7 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 	 * заглушка. Опечатка в sounds.json дала бы тишину без единой ошибки.
 	 */
 	private static void assertSoundsHavePlaceholders(ClientGameTestContext context) {
-		for (String sound : new String[] {"weapon_rpg.single", "weapon_rpg.reload", "weapon_shotgun.single", "weapon_shotgun.reload", "baseexplosioneffect.sound", "healthkit.touch", "ammopack.touch", "item.materialize", "regenerate.touch"}) {
+		for (String sound : new String[] {"weapon_rpg.single", "weapon_rpg.reload", "weapon_shotgun.single", "weapon_shotgun.reload", "weapon_shovel.miss", "weapon_shovel.hitworld", "weapon_shovel.hitflesh", "baseexplosioneffect.sound", "healthkit.touch", "ammopack.touch", "item.materialize", "regenerate.touch"}) {
 			String file = soundBehind(context, sound);
 
 			if (file == null || file.equals("minecraft:empty") || file.equals("minecraft:intentionally_empty")) {
@@ -805,6 +806,22 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			context.takeScreenshot("tf2mc-real-model-shotgun-impact");
 			context.runOnClient(client -> client.player.setXRot(0.0F));
 			context.waitTicks(40);
+
+			// Лопата: оружие ближнего боя, свои руки и жесты тела.
+			selectWeapon(context, Shovel.ITEM);
+			context.waitTicks(20);
+			context.takeScreenshot("tf2mc-real-model-shovel-first-person");
+			context.getInput().pressKey(options -> options.keyUse);
+			context.waitTicks(4);
+			context.takeScreenshot("tf2mc-real-model-shovel-first-person-swing");
+			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_FRONT));
+			context.waitTicks(30);
+			context.takeScreenshot("tf2mc-real-model-shovel");
+			context.getInput().pressKey(options -> options.keyUse);
+			context.waitTicks(4);
+			context.takeScreenshot("tf2mc-real-model-shovel-swing");
+			context.waitTicks(30);
+			context.runOnClient(client -> client.options.setCameraType(CameraType.FIRST_PERSON));
 			selectRocketLauncher(context);
 			context.runOnClient(client -> client.options.setCameraType(CameraType.FIRST_PERSON));
 

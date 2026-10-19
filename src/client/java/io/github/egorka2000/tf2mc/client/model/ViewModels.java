@@ -5,8 +5,8 @@ import java.util.function.ToDoubleFunction;
 import io.github.egorka2000.tf2mc.weapon.WeaponAction;
 
 /**
- * Анимация рук своего игрока от первого лица, как у оружия с обоймой в TF2: достать оружие,
- * ожидание, выстрел, перезарядка (начало, по патрону, конец). Имена анимаций — у оружия в руке
+ * Анимация рук своего игрока от первого лица, как в TF2: достать оружие, ожидание, выстрел или
+ * замах, у оружия с обоймой — перезарядка (начало, по патрону, конец). Имена анимаций — у оружия в руке
  * ({@link WeaponView}). События приходят с сервера ({@link #onWeaponAction}); оружие достаётся,
  * когда его берут в руку, в том числе вместо другого оружия.
  *
@@ -75,7 +75,8 @@ public final class ViewModels {
 			return once(view.draw(), sinceDraw, duration);
 		}
 
-		if (action != null) {
+		// У оружия ближнего боя перезарядки нет: событие перезарядки другого оружия ему не важно.
+		if (action != null && (action == WeaponAction.FIRE || view.reloadStart() != null)) {
 			float since = drawing ? Math.min(sinceAction, sinceDraw - draw) : sinceAction;
 
 			switch (action) {

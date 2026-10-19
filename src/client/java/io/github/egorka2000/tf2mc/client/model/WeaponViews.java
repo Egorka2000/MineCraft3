@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import io.github.egorka2000.tf2mc.weapon.RocketLauncher;
 import io.github.egorka2000.tf2mc.weapon.Shotgun;
+import io.github.egorka2000.tf2mc.weapon.Shovel;
 
 import net.minecraft.world.item.ItemStack;
 
@@ -18,8 +19,13 @@ public final class WeaponViews {
 			"models/weapons/c_models/c_shotgun/c_shotgun",
 			"draw", "idle", "fire", "reload_start", "reload_loop", "reload_end");
 
+	/** У рук TF2 три замаха лопатой (a, b и критический c); мод играет первый. */
+	public static final WeaponView SHOVEL = new WeaponView(Shovel.ITEM, WeaponView.MELEE,
+			"models/weapons/c_models/c_shovel/c_shovel",
+			"s_draw", "s_idle", "s_swing_a", null, null, null);
+
 	/** Всё оружие, которое рисуется моделью TF2. */
-	public static final List<WeaponView> ALL = List.of(ROCKET_LAUNCHER, SHOTGUN);
+	public static final List<WeaponView> ALL = List.of(ROCKET_LAUNCHER, SHOTGUN, SHOVEL);
 
 	private WeaponViews() {
 	}

@@ -31,6 +31,15 @@ public final class Tf2Sounds {
 	/** В дробовик заряжен патрон. */
 	public static final SoundEvent SHOTGUN_RELOAD = register("weapon_shotgun.reload");
 
+	/** Взмах лопатой. */
+	public static final SoundEvent SHOVEL_MISS = register("weapon_shovel.miss");
+
+	/** Лопата ударила по блоку. */
+	public static final SoundEvent SHOVEL_HIT_WORLD = register("weapon_shovel.hitworld");
+
+	/** Лопата ударила игрока или моба. */
+	public static final SoundEvent SHOVEL_HIT_FLESH = register("weapon_shovel.hitflesh");
+
 	/** Взрыв ракеты. */
 	public static final SoundEvent ROCKET_EXPLODE = register("baseexplosioneffect.sound");
 

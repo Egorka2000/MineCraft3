@@ -88,6 +88,16 @@ class ViewModelsTest {
 	}
 
 	@Test
+	void meleeSwingsAndIgnoresReload() {
+		WeaponView shovel = new WeaponView(null, WeaponView.MELEE, "shovel", "s_draw", "s_idle", "s_swing_a", null, null, null);
+		ToDoubleFunction<String> duration = Map.of("s_draw", 0.5, "s_idle", 2.0, "s_swing_a", 0.8)::get;
+
+		assertFrame("s_swing_a", 0.5F, ViewModels.choose(shovel, WeaponAction.FIRE, 0.4F, false, 0, 1.0F, duration));
+		// Событие перезарядки дробовика, убранного в инвентарь, рукам с лопатой не мешает.
+		assertFrame("s_idle", 0.5F, ViewModels.choose(shovel, WeaponAction.RELOAD_END, 0.1F, false, 0, 1.0F, duration));
+	}
+
+	@Test
 	void stretchMatchesViewmodelFov() {
 		// tan(35°) / tan(atan(tan(27°)·0,75)) ≈ 0,7002 / 0,3821.
 		assertEquals(1.8325F, ViewModelRenderer.stretch(), 1e-3F);

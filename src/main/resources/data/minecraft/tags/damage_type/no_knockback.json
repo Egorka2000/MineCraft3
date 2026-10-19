@@ -2,6 +2,7 @@
 	"replace": false,
 	"values": [
 		"tf2mc:blast",
-		"tf2mc:bullet"
+		"tf2mc:bullet",
+		"tf2mc:melee"
 	]
 }

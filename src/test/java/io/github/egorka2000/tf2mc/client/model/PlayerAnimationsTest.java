@@ -27,6 +27,25 @@ class PlayerAnimationsTest {
 	}
 
 	@Test
+	void meleeHasItsOwnNamesAndNoReload() {
+		assertEquals("Attack_Stand_MELEE", PlayerAnimations.gestureName(WeaponAction.FIRE, Posture.AIR, WeaponView.MELEE));
+		assertEquals("Attack_Crouch_MELEE", PlayerAnimations.gestureName(WeaponAction.FIRE, Posture.CROUCH, WeaponView.MELEE));
+		assertEquals("Melee_Swim_Swing", PlayerAnimations.gestureName(WeaponAction.FIRE, Posture.SWIM, WeaponView.MELEE));
+		assertNull(PlayerAnimations.gestureName(WeaponAction.RELOAD_START, Posture.STAND, WeaponView.MELEE));
+	}
+
+	@Test
+	void baseSequenceDependsOnPostureMovementAndSlot() {
+		assertEquals("stand_PRIMARY", PlayerAnimations.sequenceName(Posture.STAND, false, WeaponView.PRIMARY));
+		assertEquals("run_SECONDARY", PlayerAnimations.sequenceName(Posture.STAND, true, WeaponView.SECONDARY));
+		assertEquals("crouch_walk_MELEE", PlayerAnimations.sequenceName(Posture.CROUCH, true, WeaponView.MELEE));
+		assertEquals("swim_MELEE", PlayerAnimations.sequenceName(Posture.SWIM, false, WeaponView.MELEE));
+		assertEquals("jump_float_SECONDARY", PlayerAnimations.sequenceName(Posture.AIR, false, WeaponView.SECONDARY));
+		// Полёт с оружием ближнего боя у TF2 называется иначе.
+		assertEquals("a_jumpfloat_MELEE", PlayerAnimations.sequenceName(Posture.AIR, false, WeaponView.MELEE));
+	}
+
+	@Test
 	void secondaryWeaponUsesItsOwnNames() {
 		assertEquals("AttackStand_SECONDARY", PlayerAnimations.gestureName(WeaponAction.FIRE, Posture.STAND, WeaponView.SECONDARY));
 		assertEquals("AttackSwim_SECONDARY", PlayerAnimations.gestureName(WeaponAction.FIRE, Posture.SWIM, WeaponView.SECONDARY));

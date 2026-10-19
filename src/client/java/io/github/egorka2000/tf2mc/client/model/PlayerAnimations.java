@@ -77,6 +77,20 @@ public final class PlayerAnimations {
 		SWIM
 	}
 
+	/**
+	 * Основная анимация TF2 для положения тела и набора оружия. Плавание смешивается по
+	 * направлению, как бег; без движения — покачивание на месте. Полёт с оружием ближнего боя
+	 * у TF2 называется иначе: {@code a_jumpfloat_MELEE}.
+	 */
+	public static String sequenceName(Posture posture, boolean moving, String slot) {
+		return switch (posture) {
+			case SWIM -> "swim_" + slot;
+			case AIR -> slot.equals(WeaponView.MELEE) ? "a_jumpfloat_" + slot : "jump_float_" + slot;
+			case CROUCH -> (moving ? "crouch_walk_" : "crouch_") + slot;
+			case STAND -> (moving ? "run_" : "stand_") + slot;
+		};
+	}
+
 	/** Жест TF2 с основным оружием для события оружия и положения тела. */
 	public static String gestureName(WeaponAction action, Posture posture) {
 		return gestureName(action, posture, WeaponView.PRIMARY);
@@ -90,6 +104,15 @@ public final class PlayerAnimations {
 	 *         одна последовательность без повтора и конца
 	 */
 	public static String gestureName(WeaponAction action, Posture posture, String slot) {
+		// Удар оружием ближнего боя назван у TF2 по-своему; перезарядки у него нет.
+		if (slot.equals(WeaponView.MELEE)) {
+			return action != WeaponAction.FIRE ? null : switch (posture) {
+				case CROUCH -> "Attack_Crouch_MELEE";
+				case SWIM -> "Melee_Swim_Swing";
+				default -> "Attack_Stand_MELEE";
+			};
+		}
+
 		if (action == WeaponAction.FIRE) {
 			return switch (posture) {
 				case CROUCH -> "AttackCrouch_" + slot;

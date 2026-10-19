@@ -19,7 +19,7 @@ import net.minecraft.world.entity.player.Player;
 /**
  * Оружие мода: регистрация и запуск, выдача классу.
  *
- * <p>Стреляет ракетница {@link RocketLauncher}; отладочная команда {@code /tf2 rocket} выпускает
+ * <p>Оружие Soldier: ракетница {@link RocketLauncher}, дробовик {@link Shotgun}, лопата {@link Shovel}. Отладочная команда {@code /tf2 rocket} выпускает
  * ракету без неё и не тратит боезапас.
  */
 public final class Tf2Weapons {
@@ -28,6 +28,9 @@ public final class Tf2Weapons {
 
 	/** Тип урона от пули и дроби: так же в обход брони, без ванильного отбрасывания и без паузы между попаданиями. */
 	public static final ResourceKey<DamageType> BULLET = ResourceKey.create(Registries.DAMAGE_TYPE, Tf2Mc.id("bullet"));
+
+	/** Тип урона от оружия ближнего боя: так же в обход брони, без ванильного отбрасывания и без паузы между попаданиями. */
+	public static final ResourceKey<DamageType> MELEE = ResourceKey.create(Registries.DAMAGE_TYPE, Tf2Mc.id("melee"));
 
 	/** Оружие с обоймой, которое выдаётся классу: основное, затем второе. */
 	public static final List<ClipWeapon> CLIP_WEAPONS = List.of(RocketLauncher.WEAPON, Shotgun.WEAPON);
@@ -52,16 +55,19 @@ public final class Tf2Weapons {
 	public static void register() {
 		Tf2Sounds.register();
 		CLIP_WEAPONS.forEach(ClipWeapon::register);
+		Shovel.WEAPON.register();
 	}
 
 	/** Выдаёт игроку оружие класса с полным боезапасом; уже выданное не повторяет. */
 	public static void equip(ServerPlayer player) {
 		CLIP_WEAPONS.forEach(weapon -> weapon.equip(player));
+		Shovel.WEAPON.equip(player);
 	}
 
 	/** Забирает у игрока оружие класса и боезапас. */
 	public static void unequip(ServerPlayer player) {
 		CLIP_WEAPONS.forEach(weapon -> weapon.unequip(player));
+		Shovel.WEAPON.unequip(player);
 	}
 
 	/**
