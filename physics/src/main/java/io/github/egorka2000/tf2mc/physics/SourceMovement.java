@@ -25,6 +25,12 @@ public final class SourceMovement {
 	 */
 	public static final double LEAVE_GROUND_SPEED = 140.0;
 
+	/**
+	 * Скорость вверх после прыжка в воздухе, u/s: √(2 · 800 · 45), прыжок на 45 u при гравитации TF2.
+	 * Источник — docs/05-sources.md.
+	 */
+	public static final double AIR_JUMP_SPEED = 268.3281572999747;
+
 	/** Ниже этой скорости трение не считается: игрок уже стоит. */
 	private static final double MIN_FRICTION_SPEED = 0.1;
 
@@ -84,6 +90,16 @@ public final class SourceMovement {
 		}
 
 		double wishSpeed = Math.min(wishLength, 1.0) * params.maxSpeed();
+
+		// Прыжок в воздухе (двойной прыжок Scout) не прибавляется к скорости, а заменяет её: по
+		// горизонтали — желаемое направление на желаемой скорости (без нажатых клавиш — ноль), вверх —
+		// AIR_JUMP_SPEED. Так Scout меняет направление в воздухе. Вертикаль заменяется после первой
+		// половины гравитации, как в TF2. Источник — docs/05-sources.md (SDK).
+		if (!onGround && input.airJump()) {
+			vx = wishDirX * wishSpeed;
+			vy = wishDirY * wishSpeed;
+			vz = AIR_JUMP_SPEED;
+		}
 
 		if (onGround) {
 			vz = 0.0;

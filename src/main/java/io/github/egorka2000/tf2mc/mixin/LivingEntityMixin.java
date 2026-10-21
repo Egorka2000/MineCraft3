@@ -35,7 +35,7 @@ abstract class LivingEntityMixin {
 	// travelInAir — это и ходьба по земле, и полёт; в воде, лаве и на элитрах игра сюда не заходит.
 	@Inject(method = "travelInAir", at = @At("HEAD"), cancellable = true)
 	private void tf2mc$travelInAir(Vec3 input, CallbackInfo ci) {
-		if (Tf2Travel.travel((LivingEntity) (Object) this, input)) {
+		if (Tf2Travel.travel((LivingEntity) (Object) this, input, jumping)) {
 			ci.cancel();
 		}
 	}

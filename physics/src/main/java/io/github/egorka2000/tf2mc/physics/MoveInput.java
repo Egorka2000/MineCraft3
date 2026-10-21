@@ -14,9 +14,10 @@ package io.github.egorka2000.tf2mc.physics;
  * @param wishY    желаемое направление по y
  * @param forwardX направление взгляда по x, единичный вектор в горизонтальной плоскости
  * @param forwardY направление взгляда по y
- * @param jump     нажат ли прыжок
+ * @param jump     нажат ли прыжок с земли
+ * @param airJump  прыжок в воздухе (двойной прыжок Scout): решает вызывающий код, сколько их осталось
  */
-public record MoveInput(double wishX, double wishY, double forwardX, double forwardY, boolean jump) {
+public record MoveInput(double wishX, double wishY, double forwardX, double forwardY, boolean jump, boolean airJump) {
 	/** Нет ввода. */
 	public static final MoveInput NONE = new MoveInput(0.0, 0.0, false);
 
@@ -25,6 +26,11 @@ public record MoveInput(double wishX, double wishY, double forwardX, double forw
 			throw new IllegalArgumentException(
 					"направления должны быть конечными: " + wishX + ", " + wishY + ", " + forwardX + ", " + forwardY);
 		}
+	}
+
+	/** Ввод без прыжка в воздухе. */
+	public MoveInput(double wishX, double wishY, double forwardX, double forwardY, boolean jump) {
+		this(wishX, wishY, forwardX, forwardY, jump, false);
 	}
 
 	/** Ввод без направления взгляда: скорость движения назад не ограничивается. */

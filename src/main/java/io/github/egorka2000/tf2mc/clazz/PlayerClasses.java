@@ -54,7 +54,7 @@ public final class PlayerClasses {
 			// Ванильному игроку оружие класса не положено, даже если вещи сохраняются при смерти:
 			// он мог стать ванильным перед самым возрождением (PendingChoice).
 			if (get(oldPlayer).isPresent()) {
-				Tf2Weapons.equip(newPlayer);
+				Tf2Weapons.equip(newPlayer, get(oldPlayer).get());
 			} else {
 				Tf2Weapons.unequip(newPlayer);
 			}
@@ -77,6 +77,8 @@ public final class PlayerClasses {
 	 * @param tfClass новый класс; {@code null} возвращает ванильного игрока
 	 */
 	public static void set(ServerPlayer player, TfClass tfClass) {
+		Optional<TfClass> previous = get(player);
+
 		if (tfClass == null) {
 			player.removeAttached(CLASS_ID);
 		} else {
@@ -85,10 +87,13 @@ public final class PlayerClasses {
 
 		applyHealth(player, Optional.ofNullable(tfClass), true);
 
-		if (tfClass == null) {
+		// Оружие прежнего класса забирается: у каждого класса своё.
+		if (tfClass == null || previous.isPresent() && previous.get() != tfClass) {
 			Tf2Weapons.unequip(player);
-		} else {
-			Tf2Weapons.equip(player);
+		}
+
+		if (tfClass != null) {
+			Tf2Weapons.equip(player, tfClass);
 		}
 	}
 

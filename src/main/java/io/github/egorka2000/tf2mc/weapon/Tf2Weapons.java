@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
+import io.github.egorka2000.tf2mc.clazz.TfClass;
 
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -58,10 +59,15 @@ public final class Tf2Weapons {
 		Shovel.WEAPON.register();
 	}
 
-	/** Выдаёт игроку оружие класса с полным боезапасом; уже выданное не повторяет. */
-	public static void equip(ServerPlayer player) {
-		CLIP_WEAPONS.forEach(weapon -> weapon.equip(player));
-		Shovel.WEAPON.equip(player);
+	/**
+	 * Выдаёт игроку оружие класса с полным боезапасом; уже выданное не повторяет. Оружие Scout
+	 * появится на шаге 14б: пока Scout без оружия.
+	 */
+	public static void equip(ServerPlayer player, TfClass tfClass) {
+		if (tfClass == TfClass.SOLDIER) {
+			CLIP_WEAPONS.forEach(weapon -> weapon.equip(player));
+			Shovel.WEAPON.equip(player);
+		}
 	}
 
 	/** Забирает у игрока оружие класса и боезапас. */

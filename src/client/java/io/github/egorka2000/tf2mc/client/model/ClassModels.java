@@ -1,11 +1,14 @@
 package io.github.egorka2000.tf2mc.client.model;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
+import io.github.egorka2000.tf2mc.clazz.TfClass;
 
 import net.fabricmc.loader.api.FabricLoader;
 
@@ -84,11 +87,15 @@ public final class ClassModels {
 		List<String> weapons = WeaponViews.ALL.stream().map(WeaponView::model).toList();
 		viewModel = SourceModels.load(resources, textureManager, SourceModels.SOLDIER_ARMS, weapons,
 				Tf2Mc.config().current().unitsPerBlock(), sourceTextures).filter(arms -> arms.animations().isPresent() && !arms.weapons().isEmpty());
-		Optional<SourceModels.PlayerMesh> soldier = SourceModels.load(
-				resources, textureManager, SourceModels.SOLDIER, weapons, Tf2Mc.config().current().unitsPerBlock(), sourceTextures);
+		Map<TfClass, SourceModels.PlayerMesh> meshes = new EnumMap<>(TfClass.class);
 
-		if (soldier.isPresent()) {
-			renderer = new SourcePlayerRenderer(context, soldier.get());
+		for (TfClass tfClass : TfClass.values()) {
+			SourceModels.load(resources, textureManager, SourceModels.playerModel(tfClass), weapons, Tf2Mc.config().current().unitsPerBlock(), sourceTextures)
+					.ifPresent(mesh -> meshes.put(tfClass, mesh));
+		}
+
+		if (!meshes.isEmpty()) {
+			renderer = new SourcePlayerRenderer(context, meshes);
 		} else {
 			renderer = LIBRARY_LOADED && resources.getResource(MODEL_FILE).isPresent() ? ClassRenderers.create(context) : null;
 		}
@@ -101,7 +108,14 @@ public final class ClassModels {
 
 	/** Отрисовщик для сущности; {@code null}, если её рисует игра. */
 	public static EntityRenderer<?, ?> rendererFor(Entity entity) {
-		return renderer != null && entity instanceof AbstractClientPlayer player && PlayerClasses.get(player).isPresent() ? renderer : null;
+		if (renderer == null || !(entity instanceof AbstractClientPlayer player)) {
+			return null;
+		}
+
+		// Класс, модели которого нет в паке, рисуется игрой со скином.
+		Optional<TfClass> tfClass = PlayerClasses.get(player);
+		boolean drawn = tfClass.isPresent() && (!(renderer instanceof SourcePlayerRenderer source) || source.hasModel(tfClass.get()));
+		return drawn ? renderer : null;
 	}
 
 	/** Отрисовщик для состояния отрисовки; {@code null}, если его рисует игра. */

@@ -65,11 +65,16 @@ public final class UnitConversion {
 	 * @param yawDegrees угол поворота взгляда, градусы
 	 */
 	public static MoveInput toMoveInput(double strafe, double forward, double yawDegrees, boolean jump) {
+		return toMoveInput(strafe, forward, yawDegrees, jump, false);
+	}
+
+	/** То же с прыжком в воздухе (двойной прыжок Scout). */
+	public static MoveInput toMoveInput(double strafe, double forward, double yawDegrees, boolean jump, boolean airJump) {
 		double yaw = Math.toRadians(yawDegrees);
 		double sin = Math.sin(yaw);
 		double cos = Math.cos(yaw);
 
 		// Направление взгляда — это ввод «вперёд» единичной длины: при угле 0 оно смотрит вдоль +z.
-		return new MoveInput(strafe * cos - forward * sin, forward * cos + strafe * sin, -sin, cos, jump);
+		return new MoveInput(strafe * cos - forward * sin, forward * cos + strafe * sin, -sin, cos, jump, airJump);
 	}
 }

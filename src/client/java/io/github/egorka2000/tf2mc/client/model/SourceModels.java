@@ -12,6 +12,7 @@ import java.util.Optional;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import io.github.egorka2000.tf2mc.Tf2Mc;
+import io.github.egorka2000.tf2mc.clazz.TfClass;
 import io.github.egorka2000.tf2mc.sourcemodel.AnimationSet;
 import io.github.egorka2000.tf2mc.sourcemodel.ModelFormatException;
 import io.github.egorka2000.tf2mc.sourcemodel.Pose;
@@ -34,8 +35,10 @@ import net.minecraft.server.packs.resources.ResourceManager;
  * распаковывает текстуры в память и переводит сетку в оси Minecraft.
  */
 public final class SourceModels {
-	/** Модель Soldier: файлы MDL, VVD и VTX рядом. */
-	public static final String SOLDIER = "models/player/soldier";
+	/** Модель класса в паке: {@code models/player/<класс>}, анимации — в подключённом {@code <класс>_animations.mdl}. */
+	public static String playerModel(TfClass tfClass) {
+		return "models/player/" + tfClass.id();
+	}
 
 	/** Оружие Soldier в руках, от третьего лица. */
 	public static final String ROCKET_LAUNCHER = "models/weapons/c_models/c_rocketlauncher/c_rocketlauncher";
@@ -290,7 +293,7 @@ public final class SourceModels {
 
 	/**
 	 * Анимации из подключённой модели ({@code $includemodel}, у игроков — {@code *_animations.mdl}).
-	 * Кости должны совпадать с костями модели по именам и порядку; иначе анимаций нет.
+	 * Кости анимаций должны совпадать с первыми костями модели по именам и порядку; иначе анимаций нет.
 	 */
 	private static AnimationSet animations(ResourceManager resources, StudioModel studio, String model) {
 		for (String include : studio.includeModels()) {
@@ -303,11 +306,11 @@ public final class SourceModels {
 			}
 
 			try {
-				AnimationSet set = AnimationSet.read(data.get());
-				List<String> names = set.bones().stream().map(StudioModel.Bone::name).toList();
+				// У модели могут быть свои кости после костей анимаций (вспомогательные кости Scout).
+				Optional<AnimationSet> set = AnimationSet.read(data.get()).forModelBones(studio.bones());
 
-				if (names.equals(studio.bones().stream().map(StudioModel.Bone::name).toList())) {
-					return set;
+				if (set.isPresent()) {
+					return set.get();
 				}
 
 				Tf2Mc.LOGGER.warn("кости анимаций {} не совпадают с костями модели {}", path, model);

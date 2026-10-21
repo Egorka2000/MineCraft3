@@ -230,6 +230,71 @@ class SourceMovementTest {
 		assertEquals(withoutJump, withJump);
 	}
 
+	// --- Прыжок в воздухе (двойной прыжок Scout) ---
+
+	private static final MoveParams SCOUT = MoveParams.tf2Defaults(400.0);
+
+	private static MoveInput airJump(double wishX, double wishY) {
+		return new MoveInput(wishX, wishY, 0.0, 0.0, false, true);
+	}
+
+	@Test
+	void airJumpReplacesVelocityWithWishDirection() {
+		// Летел вперёд по x на 520 u/s и падал; прыгнул в воздухе, зажав «влево» (+y): летит влево на 400 u/s.
+		MoveState flying = new MoveState(520.0, 0.0, -300.0, false);
+		MoveState after = SourceMovement.beforeMove(flying, airJump(0.0, 1.0), SCOUT, TF2_TICK);
+
+		assertEquals(0.0, after.vx(), 1e-9);
+		// В том же шаге действует и ускорение в воздухе, но вдоль желаемого направления на полной скорости оно нулевое.
+		assertEquals(400.0, after.vy(), 1e-9);
+		assertEquals(SourceMovement.AIR_JUMP_SPEED, after.vz(), 1e-9);
+		assertFalse(after.onGround());
+	}
+
+	@Test
+	void airJumpWithoutKeysStopsHorizontally() {
+		MoveState flying = new MoveState(300.0, -200.0, 50.0, false);
+		MoveState after = SourceMovement.beforeMove(flying, airJump(0.0, 0.0), SCOUT, TF2_TICK);
+
+		assertEquals(0.0, after.horizontalSpeed(), 1e-12);
+		assertEquals(SourceMovement.AIR_JUMP_SPEED, after.vz(), 1e-12);
+	}
+
+	@Test
+	void airJumpDiagonalIsLimitedToClassSpeed() {
+		MoveState after = SourceMovement.beforeMove(new MoveState(0.0, 0.0, 0.0, false), airJump(1.0, 1.0), SCOUT, TF2_TICK);
+
+		assertEquals(400.0, after.horizontalSpeed(), 1e-9);
+	}
+
+	@Test
+	void airJumpOnGroundIsIgnored() {
+		MoveState standing = new MoveState(100.0, 0.0, 0.0, true);
+
+		assertEquals(SourceMovement.beforeMove(standing, MoveInput.NONE, SCOUT, TF2_TICK),
+				SourceMovement.beforeMove(standing, airJump(0.0, 0.0), SCOUT, TF2_TICK));
+	}
+
+	@Test
+	void airJumpRisesFortyFiveUnits() {
+		// √(2 · 800 · 45): от точки прыжка вверх на 45 u.
+		MoveState state = SourceMovement.beforeMove(new MoveState(0.0, 0.0, 0.0, false), airJump(0.0, 0.0), SCOUT, TF2_TICK);
+		double height = 0.0;
+		double apex = 0.0;
+
+		for (int step = 0; step < 200; step++) {
+			if (step > 0) {
+				state = SourceMovement.beforeMove(state, MoveInput.NONE, SCOUT, TF2_TICK);
+			}
+
+			height += state.vz() * TF2_TICK;
+			apex = Math.max(apex, height);
+			state = SourceMovement.afterMove(state, SCOUT, TF2_TICK);
+		}
+
+		assertEquals(45.0, apex, 2.5);
+	}
+
 	@Test
 	void jumpOnLandingStepSkipsFriction() {
 		// Распрыжка: игрок приземлился быстрее максимума класса и прыгает в тот же шаг.
