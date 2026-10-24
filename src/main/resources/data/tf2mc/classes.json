@@ -1,0 +1,12 @@
+{
+	"scout": {
+		"health": 125,
+		"speed": 400,
+		"airJumps": 1
+	},
+	"soldier": {
+		"health": 200,
+		"speed": 240,
+		"airJumps": 0
+	}
+}
