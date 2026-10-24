@@ -46,11 +46,18 @@ public final class ExplosionMath {
 	/** Множитель урона пули в упор (дробовик). */
 	public static final double RANGE_NEAR_BULLET = 1.5;
 
-	/** Множитель урона ракеты на удвоенном среднем расстоянии и дальше. */
+	/** Наименьший множитель урона по расстоянию: на {@link #RANGE_FAR_DISTANCE} и дальше. */
 	public static final double RANGE_FAR = 0.528;
 
 	/** Расстояние до цели, на котором урон равен базовому, u. */
 	public static final double RANGE_MIDDLE = 512.0;
+
+	/**
+	 * Расстояние, с которого урон больше не падает, u: 1024 − 102,4. На официальных серверах TF2
+	 * случайный разброс урона выключен, и расстояние для расчёта не бывает больше этого
+	 * (TF2 Wiki, Damage; docs/05-sources.md).
+	 */
+	public static final double RANGE_FAR_DISTANCE = 921.6;
 
 	/** Объём эталонного игрока: толчок обратно пропорционален объёму халла. */
 	private static final double REFERENCE_VOLUME = 48.0 * 48.0 * 82.0;
@@ -96,8 +103,8 @@ public final class ExplosionMath {
 
 	/**
 	 * Множитель урона ракеты по расстоянию между стрелком и целью в момент попадания:
-	 * {@link #RANGE_NEAR} в упор, 1 на {@link #RANGE_MIDDLE}, {@link #RANGE_FAR} на удвоенном
-	 * расстоянии и дальше.
+	 * {@link #RANGE_NEAR} в упор, 1 на {@link #RANGE_MIDDLE}, {@link #RANGE_FAR} на
+	 * {@link #RANGE_FAR_DISTANCE} и дальше.
 	 *
 	 * <p>Значения в трёх точках сверены. Между ними множитель меняется линейно — это допущение:
 	 * форма кривой в источнике не приведена.
@@ -124,11 +131,11 @@ public final class ExplosionMath {
 			return near + (1.0 - near) * distance / RANGE_MIDDLE;
 		}
 
-		if (distance >= RANGE_MIDDLE * 2.0) {
+		if (distance >= RANGE_FAR_DISTANCE) {
 			return RANGE_FAR;
 		}
 
-		return 1.0 + (RANGE_FAR - 1.0) * (distance - RANGE_MIDDLE) / RANGE_MIDDLE;
+		return 1.0 + (RANGE_FAR - 1.0) * (distance - RANGE_MIDDLE) / (RANGE_FAR_DISTANCE - RANGE_MIDDLE);
 	}
 
 	/**
