@@ -28,9 +28,10 @@ class ExplosionMathTest {
 
 	@Test
 	void rangeMultiplierMatchesVerifiedPoints() {
-		// docs/05-sources.md: 125% в упор, 100% на 512 u, 52,8% на 1024 u и дальше.
+		// docs/05-sources.md: 125% в упор, 100% на 512 u, 52,8% на 921,6 u (1024 − 102,4) и дальше.
 		assertEquals(1.25, ExplosionMath.rangeMultiplier(0.0), 1e-9);
 		assertEquals(1.0, ExplosionMath.rangeMultiplier(512.0), 1e-9);
+		assertEquals(0.528, ExplosionMath.rangeMultiplier(921.6), 1e-9);
 		assertEquals(0.528, ExplosionMath.rangeMultiplier(1024.0), 1e-9);
 		assertEquals(0.528, ExplosionMath.rangeMultiplier(5000.0), 1e-9);
 		assertEquals(1.25, ExplosionMath.rangeMultiplier(-10.0), 1e-9);
@@ -48,7 +49,15 @@ class ExplosionMathTest {
 	@Test
 	void rangeMultiplierIsLinearBetweenPoints() {
 		assertEquals(1.125, ExplosionMath.rangeMultiplier(256.0), 1e-9);
-		assertEquals(0.764, ExplosionMath.rangeMultiplier(768.0), 1e-9);
+		// Середина между 512 и 921,6 u.
+		assertEquals(0.764, ExplosionMath.rangeMultiplier(716.8), 1e-9);
+	}
+
+	@Test
+	void farMultiplierIsReachedBefore1024() {
+		// На 921,6 u урон уже не падает: ракета наносит 48, а не 56, как было при точке на 1024 u.
+		assertEquals(48.0, Math.round(90.0 * ExplosionMath.rangeMultiplier(921.6)), 1e-9);
+		assertTrue(ExplosionMath.rangeMultiplier(900.0) > ExplosionMath.RANGE_FAR);
 	}
 
 	@Test
