@@ -187,6 +187,34 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		Tf2Mc.LOGGER.info("[замер] {}: скорость после стрейфа в прыжке: {} блоков/с, {} u/s", where, String.format("%.3f", strafeSpeed), String.format("%.0f", strafeSpeed * UNITS_PER_BLOCK));
 		assertServerAgrees(context, server, connection, where);
 
+		// Scout: 125 здоровья, 400 u/s и двойной прыжок.
+		resetPlayer(context, server, connection);
+		server.runCommand("tf2 class scout @p");
+		connection.waitForClientboundPackets();
+		context.waitTicks(2);
+		assertNear(where + ": максимум здоровья Scout на клиенте", 125.0, clientMaxHealth(context), 0.001);
+		assertNear(where + ": скорость Scout", 400.0 / UNITS_PER_BLOCK, walkSpeed(context), 0.12);
+		assertServerAgrees(context, server, connection, where);
+
+		resetPlayer(context, server, connection);
+		double doubleJump = doubleJumpHeight(context);
+		Tf2Mc.LOGGER.info("[замер] {}: двойной прыжок Scout: {} блоков, {} u", where, String.format("%.3f", doubleJump), String.format("%.1f", doubleJump * UNITS_PER_BLOCK));
+		// Второй прыжок у вершины первого (52,2 u) поднимает ещё на 45 u и на v · dt / 2 = 2,2 u сверх того:
+		// в шаг прыжка в воздухе первая половина гравитации не вычитается, как и в TF2 (docs/02-physics.md).
+		double expected = TF2_JUMP + (45.0 + 268.3 / 60.0 / 2.0) / UNITS_PER_BLOCK;
+
+		if (Math.abs(doubleJump - expected) > 3.0 / UNITS_PER_BLOCK) {
+			throw new AssertionError(where + ": высота двойного прыжка " + doubleJump + " блоков, ожидалось около " + expected);
+		}
+
+		assertServerAgrees(context, server, connection, where);
+
+		resetPlayer(context, server, connection);
+		assertDoubleJumpTurns(context, where);
+		assertServerAgrees(context, server, connection, where);
+		server.runCommand("tf2 class soldier @p");
+		connection.waitForClientboundPackets();
+
 		// Неровности: ступенька, блок, стена, потолок, край, мелководье, лестница.
 		TerrainScenarios.run(context, server, connection, where);
 
@@ -322,6 +350,53 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 		context.getInput().releaseKey(options -> options.keyLeft);
 		context.waitTicks(20);
 		return fastest;
+	}
+
+	/** Прыжок с места и второй прыжок у вершины первого; наибольшая высота над площадкой, блоков. */
+	private static double doubleJumpHeight(ClientGameTestContext context) {
+		double ground = position(context).y;
+		double apex = ground;
+
+		context.getInput().holdKeyFor(options -> options.keyJump, 2);
+
+		for (int tick = 0; tick < 50; tick++) {
+			// Вершина прыжка с земли — через 0,36 с, на седьмом тике: клавиша нажата заново.
+			if (tick == 5) {
+				context.getInput().holdKeyFor(options -> options.keyJump, 2);
+			} else {
+				context.waitTick();
+			}
+
+			apex = Math.max(apex, position(context).y);
+		}
+
+		return apex - ground;
+	}
+
+	/**
+	 * Разбег вперёд, прыжок и второй прыжок с одной клавишей «влево»: второй прыжок заменяет
+	 * скорость, игрок летит влево на скорости Scout, а разгон вперёд пропадает.
+	 */
+	private static void assertDoubleJumpTurns(ClientGameTestContext context, String where) {
+		context.getInput().holdKey(options -> options.keyUp);
+		context.waitTicks(20);
+		context.getInput().holdKeyFor(options -> options.keyJump, 2);
+		context.getInput().releaseKey(options -> options.keyUp);
+		context.getInput().holdKey(options -> options.keyLeft);
+		context.waitTicks(2);
+		context.getInput().holdKeyFor(options -> options.keyJump, 2);
+
+		Vec3 before = position(context);
+		context.waitTick();
+		Vec3 after = position(context);
+		context.getInput().releaseKey(options -> options.keyLeft);
+		context.waitTicks(30);
+
+		// Взгляд вдоль +z, лево — +x. Скорость Scout — 400 u/s, 0,44 блока за тик.
+		double forward = (after.z - before.z) * 20.0;
+		double left = (after.x - before.x) * 20.0;
+		assertNear(where + ": скорость вперёд после двойного прыжка влево", 0.0, forward, 0.5);
+		assertNear(where + ": скорость влево после двойного прыжка", 400.0 / UNITS_PER_BLOCK, left, 0.6);
 	}
 
 	/** Сервер принял движение клиента: позиции совпадают, игрока не отбросило назад. */
@@ -573,6 +648,13 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			}
 
 			assertDrawnByMod(context, "самодельная модель TF2", true);
+
+			// В паке только Soldier: Scout рисуется игрой со скином.
+			server.runCommand("tf2 class scout @p");
+			context.waitTicks(2);
+			assertDrawnByMod(context, "Scout без своей модели в паке", false);
+			server.runCommand("tf2 class soldier @p");
+			context.waitTicks(10);
 
 			if (context.computeOnClient(client -> ClassModels.rocket().isEmpty())) {
 				throw new AssertionError("самодельная модель ракеты из пака не подключилась");
@@ -864,7 +946,7 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_FRONT));
 			context.waitTicks(30);
 			context.takeScreenshot("tf2mc-real-model-swim");
-			server.runCommand("execute at @p run fill ~-3 ~ ~-3 ~3 ~3 ~3 minecraft:air");
+			server.runCommand("execute at @p run fill ~-10 ~-2 ~-10 ~10 ~4 ~10 minecraft:air replace minecraft:water");
 			context.waitTicks(40);
 
 			// Игрок BLU — синий скин той же модели.
@@ -872,6 +954,22 @@ public class Tf2McClientGameTest implements FabricClientGameTest {
 			context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_FRONT));
 			context.waitTicks(10);
 			context.takeScreenshot("tf2mc-real-model-blu");
+
+			// Scout — своя модель и свои анимации из пака.
+			server.runCommand("tf2 class scout @p");
+			context.waitTicks(10);
+			assertDrawnByMod(context, "модель Scout из пака", true);
+			context.takeScreenshot("tf2mc-real-model-scout");
+			context.getInput().holdKey(options -> options.keyUp);
+			context.waitTicks(10);
+			context.takeScreenshot("tf2mc-real-model-scout-run");
+			context.getInput().releaseKey(options -> options.keyUp);
+			context.waitTicks(20);
+			context.getInput().holdKeyFor(options -> options.keyJump, 2);
+			context.waitTicks(4);
+			context.takeScreenshot("tf2mc-real-model-scout-jump");
+			context.waitTicks(30);
+			server.runCommand("tf2 class soldier @p");
 			context.runOnClient(client -> client.options.setCameraType(CameraType.FIRST_PERSON));
 		} finally {
 			server.runCommand("tf2 class vanilla @p");

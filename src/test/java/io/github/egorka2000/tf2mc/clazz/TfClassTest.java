@@ -16,6 +16,15 @@ class TfClassTest {
 		// docs/05-sources.md: Soldier — 200 HP, скорость 80% от базовых 300 u/s.
 		assertEquals(200, TfClass.SOLDIER.maxHealth());
 		assertEquals(MoveParams.BASE_SPEED * 0.8, TfClass.SOLDIER.maxSpeed(), 1e-9);
+		assertEquals(0, TfClass.SOLDIER.airJumps());
+	}
+
+	@Test
+	void scoutMatchesVerifiedNumbers() {
+		// docs/05-sources.md: Scout — 125 HP, скорость 133% от базовых 300 u/s (400 u/s), один прыжок в воздухе.
+		assertEquals(125, TfClass.SCOUT.maxHealth());
+		assertEquals(400.0, TfClass.SCOUT.maxSpeed(), 1e-9);
+		assertEquals(1, TfClass.SCOUT.airJumps());
 	}
 
 	@Test

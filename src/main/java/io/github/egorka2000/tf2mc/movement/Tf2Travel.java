@@ -1,6 +1,7 @@
 package io.github.egorka2000.tf2mc.movement;
 
 import io.github.egorka2000.tf2mc.clazz.PlayerClasses;
+import io.github.egorka2000.tf2mc.clazz.TfClass;
 import io.github.egorka2000.tf2mc.config.Tf2Config;
 
 import net.minecraft.world.effect.MobEffects;
@@ -27,6 +28,11 @@ public final class Tf2Travel {
 	private static final boolean SMOOTH_TURN = true;
 
 	private static final JumpGate JUMP_GATE = new JumpGate(JUMP_BUFFER_TICKS);
+
+	private static final AirJumps AIR_JUMPS = new AirJumps();
+
+	/** Была ли клавиша прыжка зажата в прошлом тике. */
+	private static boolean jumpWasHeld;
 
 	/** В какой тик игрока запрошен прыжок; -1, если запроса нет. */
 	private static int jumpRequestTick = -1;
@@ -97,6 +103,7 @@ public final class Tf2Travel {
 	public static void observeJumpKey(LivingEntity entity, boolean wasHeld) {
 		if (entity instanceof Player player && player.isLocalPlayer()) {
 			JUMP_GATE.observePreviousTick(wasHeld);
+			jumpWasHeld = wasHeld;
 		}
 	}
 
@@ -131,10 +138,11 @@ public final class Tf2Travel {
 	/**
 	 * Один тик движения.
 	 *
-	 * @param input ввод игрока в его осях: x — вбок, z — вперёд
+	 * @param input   ввод игрока в его осях: x — вбок, z — вперёд
+	 * @param jumping зажата ли клавиша прыжка в этом тике
 	 * @return true, если движение посчитано и ванильный расчёт нужно отменить
 	 */
-	public static boolean travel(LivingEntity entity, Vec3 input) {
+	public static boolean travel(LivingEntity entity, Vec3 input, boolean jumping) {
 		if (!appliesTo(entity)) {
 			return false;
 		}
@@ -145,6 +153,18 @@ public final class Tf2Travel {
 		boolean jump = jumpRequestTick == entity.tickCount;
 		jumpRequestTick = -1;
 
+		// appliesTo уже проверил, что это игрок с классом.
+		TfClass tfClass = PlayerClasses.get((Player) entity).orElseThrow();
+
+		// Прыжок в воздухе игра не запрашивает: она прыгает только с земли. Новое нажатие в воздухе
+		// ловится здесь. Оно же гасит запас прыжка с земли: иначе удержанная клавиша дала бы ещё
+		// и прыжок сразу при приземлении.
+		boolean airJump = !jump && AIR_JUMPS.tick(entity.onGround(), jumping, jumpWasHeld, tfClass.airJumps());
+
+		if (airJump) {
+			JUMP_GATE.acceptPress();
+		}
+
 		// Если прошлый тик движение TF2 не считалось (вода, лестница, только что включили),
 		// поворачивать не от чего: берётся текущий угол.
 		double yaw = entity.getYRot();
@@ -152,10 +172,9 @@ public final class Tf2Travel {
 		lastYaw = yaw;
 		lastYawTick = entity.tickCount;
 
-		// appliesTo уже проверил, что это игрок с классом.
-		double maxSpeed = PlayerClasses.get((Player) entity).orElseThrow().maxSpeed();
+		double maxSpeed = tfClass.maxSpeed();
 
-		SubstepLoop.tick(new EntityBody(entity, previousYaw), input.x, input.z, jump,
+		SubstepLoop.tick(new EntityBody(entity, previousYaw), input.x, input.z, jump, airJump,
 				config.toMoveParams(maxSpeed), config.unitsPerBlock(), config.substeps(), SMOOTH_TURN);
 		return true;
 	}

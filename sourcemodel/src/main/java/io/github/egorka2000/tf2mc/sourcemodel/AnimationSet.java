@@ -328,6 +328,44 @@ public final class AnimationSet {
 		return List.copyOf(list);
 	}
 
+	/**
+	 * Тот же набор для модели, у которой после костей анимаций есть ещё свои кости: у Scout это
+	 * вспомогательные кости предплечий {@code hlp_forearm_L/R}. В анимациях их нет, поэтому они
+	 * остаются в начальной позе относительно своих родителей.
+	 *
+	 * @param modelBones кости модели; первые должны совпадать с костями набора по именам и порядку
+	 * @return пусто, если кости модели не начинаются с костей набора
+	 */
+	public Optional<AnimationSet> forModelBones(List<StudioModel.Bone> modelBones) {
+		if (modelBones.size() < bones.size()) {
+			return Optional.empty();
+		}
+
+		for (int i = 0; i < bones.size(); i++) {
+			if (!bones.get(i).name().equals(modelBones.get(i).name())) {
+				return Optional.empty();
+			}
+		}
+
+		if (modelBones.size() == bones.size()) {
+			return Optional.of(this);
+		}
+
+		List<StudioModel.Bone> extended = new ArrayList<>(bones);
+		extended.addAll(modelBones.subList(bones.size(), modelBones.size()));
+		List<Sequence> widened = new ArrayList<>(sequences.size());
+
+		for (Sequence sequence : sequences) {
+			float[] weights = Arrays.copyOf(sequence.boneWeights(), extended.size());
+			Arrays.fill(weights, bones.size(), weights.length, 1.0F);
+			widened.add(new Sequence(sequence.name(), sequence.activity(), sequence.flags(), sequence.groupSize(), sequence.parameters(),
+					sequence.parameterStart(), sequence.parameterEnd(), sequence.blends(), sequence.layers(), weights, sequence.fadeIn(),
+					sequence.fadeOut(), sequence.events()));
+		}
+
+		return Optional.of(new AnimationSet(in, List.copyOf(extended), parameters, List.copyOf(widened), animations));
+	}
+
 	public List<StudioModel.Bone> bones() {
 		return bones;
 	}

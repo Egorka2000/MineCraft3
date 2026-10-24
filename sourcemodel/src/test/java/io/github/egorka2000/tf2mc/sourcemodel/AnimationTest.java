@@ -243,6 +243,30 @@ class AnimationTest {
 	}
 
 	@Test
+	void modelWithExtraBonesKeepsThemAtRest() {
+		AnimationSet set = AnimationSet.read(TinyModel.animations());
+		StudioModel.Bone child = set.bones().get(1);
+		// Лишняя кость модели после костей анимаций, на дочерней кости: как вспомогательные кости Scout.
+		StudioModel.Bone helper = new StudioModel.Bone("helper", 1, new float[] {0, 0, 3}, new float[] {0, 0, 0, 1}, child.poseToBone(),
+				new float[3], new float[3], new float[3]);
+		List<StudioModel.Bone> modelBones = List.of(set.bones().get(0), child, helper);
+
+		AnimationSet wide = set.forModelBones(modelBones).orElseThrow();
+		Pose pose = wide.sample(wide.sequence("idle").orElseThrow(), 0.5F, new float[1]);
+
+		assertEquals(3, wide.bones().size());
+		assertEquals(3, wide.sequence("idle").orElseThrow().boneWeights().length);
+		// Кость из анимаций движется, лишняя стоит в начальной позе относительно родителя.
+		assertArrayEquals(new float[] {0, 0, (float) Math.sin(0.5), (float) Math.cos(0.5)},
+				java.util.Arrays.copyOfRange(pose.rotations(), 4, 8), EPSILON);
+		assertArrayEquals(new float[] {0, 0, 3}, java.util.Arrays.copyOfRange(pose.positions(), 6, 9), EPSILON);
+		assertTrue(wide.sample(wide.sequence("idle").orElseThrow(), 0.5F, new float[1]).worldMatrices(wide.bones()).length == 36);
+		// Тот же список костей — тот же набор; другие первые кости — анимаций нет.
+		assertTrue(set.forModelBones(set.bones()).orElseThrow() == set);
+		assertTrue(set.forModelBones(List.of(child, set.bones().get(0))).isEmpty());
+	}
+
+	@Test
 	void tinySequenceSoundEventIsRead() {
 		AnimationSet.Sequence idle = AnimationSet.read(TinyModel.animations()).sequence("idle").orElseThrow();
 

@@ -1,5 +1,6 @@
 package io.github.egorka2000.tf2mc.client.model;
 
+import java.util.Map;
 import java.util.Optional;
 
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -39,11 +40,17 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 	/** Быстрее этой доли наибольшей скорости игрок считается идущим. */
 	private static final float MOVING = 0.1F;
 
-	private final SourceModels.PlayerMesh mesh;
+	/** Модели классов из пака: у каждого класса своя. */
+	private final Map<TfClass, SourceModels.PlayerMesh> meshes;
 
-	SourcePlayerRenderer(EntityRendererProvider.Context context, SourceModels.PlayerMesh mesh) {
+	SourcePlayerRenderer(EntityRendererProvider.Context context, Map<TfClass, SourceModels.PlayerMesh> meshes) {
 		super(context, false);
-		this.mesh = mesh;
+		this.meshes = Map.copyOf(meshes);
+	}
+
+	/** Есть ли в паке модель этого класса. */
+	boolean hasModel(TfClass tfClass) {
+		return meshes.containsKey(tfClass);
 	}
 
 	@Override
@@ -58,6 +65,14 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 		if (!(state instanceof ClassRenderState classState)) {
 			return;
 		}
+
+		classState.mesh = PlayerClasses.get(player).map(meshes::get).orElse(null);
+
+		if (classState.mesh == null) {
+			return;
+		}
+
+		SourceModels.PlayerMesh mesh = classState.mesh;
 
 		classState.skinFamily = Teams.get(player).orElse(TfTeam.RED) == TfTeam.BLU ? SourceModels.BLU : SourceModels.RED;
 
@@ -184,8 +199,10 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 
 	@Override
 	public void submit(AvatarRenderState state, PoseStack poseStack, SubmitNodeCollector collector, CameraRenderState camera) {
-		if (!state.isInvisible) {
-			ClassRenderState classState = state instanceof ClassRenderState s ? s : null;
+		ClassRenderState classState = state instanceof ClassRenderState s ? s : null;
+		SourceModels.PlayerMesh mesh = classState != null ? classState.mesh : null;
+
+		if (!state.isInvisible && mesh != null) {
 			int family = classState != null ? classState.skinFamily : SourceModels.RED;
 			int overlay = LivingEntityRenderer.getOverlayCoords(state, 0.0F);
 			SourceModels.SkinnedMesh body = mesh.body();
@@ -220,13 +237,11 @@ final class SourcePlayerRenderer extends AvatarRenderer<AbstractClientPlayer> {
 
 	/** Поза по выбранной анимации; {@code null} — начальная поза, если анимаций нет. */
 	private Pose pose(ClassRenderState state) {
-		Optional<AnimationSet> animations = mesh.animations();
-
-		if (state == null || animations.isEmpty()) {
+		if (state == null || state.mesh == null || state.mesh.animations().isEmpty()) {
 			return null;
 		}
 
-		AnimationSet set = animations.get();
+		AnimationSet set = state.mesh.animations().get();
 		Optional<AnimationSet.Sequence> sequence = set.sequence(state.sequence);
 
 		if (sequence.isEmpty()) {

@@ -1228,6 +1228,45 @@ public class Tf2McGameTest {
 		helper.succeed();
 	}
 
+	// Шаг 14а: Scout — 125 здоровья; оружие Soldier ему не выдаётся, при смене класса оружие прежнего забирается.
+	@GameTest
+	public void scoutHasOwnHealthAndWeapons(GameTestHelper helper) {
+		MinecraftServer server = helper.getLevel().getServer();
+		String name = "tf2mc-scout";
+		ServerPlayer player = joinTestPlayer(helper, name);
+
+		try {
+			player.connection.handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
+			player.setGameMode(GameType.SURVIVAL);
+
+			run(server.createCommandSourceStack(), "class soldier " + name);
+			check(player.getInventory().contains(stack -> stack.is(RocketLauncher.ITEM)), "Soldier без ракетницы");
+
+			run(server.createCommandSourceStack(), "class scout " + name);
+			check(PlayerClasses.get(player).orElse(null) == TfClass.SCOUT, "класс Scout не выдан");
+			check(player.getMaxHealth() == 125.0f && player.getHealth() == 125.0f, "здоровье Scout: " + player.getHealth() + " из " + player.getMaxHealth());
+			for (Item item : new Item[] {RocketLauncher.ITEM, Shotgun.ITEM, Shovel.ITEM}) {
+				check(!player.getInventory().contains(stack -> stack.is(item)), "у Scout осталось оружие Soldier: " + item);
+			}
+
+			check(RocketLauncher.ammo(player) == null && Shotgun.WEAPON.ammo(player) == null, "у Scout остался боезапас Soldier");
+
+			// Scout после смерти остаётся Scout и без оружия Soldier.
+			player = server.getPlayerList().respawn(player, false, Entity.RemovalReason.KILLED);
+			check(PlayerClasses.get(player).orElse(null) == TfClass.SCOUT, "класс Scout потерян после перерождения");
+			check(!player.getInventory().contains(stack -> stack.is(RocketLauncher.ITEM)), "Scout возродился с ракетницей");
+
+			run(server.createCommandSourceStack(), "class soldier " + name);
+			check(player.getInventory().contains(stack -> stack.is(RocketLauncher.ITEM)), "ракетница не выдана при возвращении к Soldier");
+			check(player.getMaxHealth() == 200.0f, "здоровье после возвращения к Soldier: " + player.getMaxHealth());
+		} finally {
+			run(server.createCommandSourceStack(), "class vanilla " + name);
+			server.getPlayerList().remove(player);
+		}
+
+		helper.succeed();
+	}
+
 	private static void tickShovel(MinecraftServer server, int ticks) {
 		for (int i = 0; i < ticks; i++) {
 			Shovel.WEAPON.tick(server);

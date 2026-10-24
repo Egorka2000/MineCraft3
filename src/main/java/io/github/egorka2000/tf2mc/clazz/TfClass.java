@@ -3,13 +3,14 @@ package io.github.egorka2000.tf2mc.clazz;
 import java.util.Optional;
 
 /**
- * Класс TF2: здоровье и скорость. Числа сверены, источники в docs/05-sources.md.
+ * Класс TF2: здоровье, скорость и прыжки в воздухе. Числа сверены, источники в docs/05-sources.md.
  *
- * <p>Пока здесь только Soldier: остальные классы и файл данных появятся после первой вехи.
+ * <p>Пока здесь Soldier и Scout; остальные классы и файл данных появятся позже.
  * Классы игры не используются.
  */
 public enum TfClass {
-	SOLDIER("soldier", 200, 240.0);
+	SCOUT("scout", 125, 400.0, 1),
+	SOLDIER("soldier", 200, 240.0, 0);
 
 	/** Слово в командах, которое снимает класс и возвращает ванильное поведение. Классом не является. */
 	public static final String VANILLA_ID = "vanilla";
@@ -17,11 +18,13 @@ public enum TfClass {
 	private final String id;
 	private final int maxHealth;
 	private final double maxSpeed;
+	private final int airJumps;
 
-	TfClass(String id, int maxHealth, double maxSpeed) {
+	TfClass(String id, int maxHealth, double maxSpeed, int airJumps) {
 		this.id = id;
 		this.maxHealth = maxHealth;
 		this.maxSpeed = maxSpeed;
+		this.airJumps = airJumps;
 	}
 
 	/** Имя класса в командах и в сохранённых данных игрока. */
@@ -37,6 +40,11 @@ public enum TfClass {
 	/** Максимальная скорость на земле, u/s. */
 	public double maxSpeed() {
 		return maxSpeed;
+	}
+
+	/** Сколько раз за полёт можно прыгнуть в воздухе: у Scout — один двойной прыжок. */
+	public int airJumps() {
+		return airJumps;
 	}
 
 	/** Класс по имени. Неизвестное имя и «vanilla» дают пустой результат. */

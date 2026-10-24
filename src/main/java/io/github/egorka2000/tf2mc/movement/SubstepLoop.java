@@ -43,6 +43,16 @@ public final class SubstepLoop {
 	 */
 	public static void tick(MovingBody body, double strafe, double forward, boolean jump,
 			MoveParams params, double unitsPerBlock, int substeps, boolean smoothTurn) {
+		tick(body, strafe, forward, jump, false, params, unitsPerBlock, substeps, smoothTurn);
+	}
+
+	/**
+	 * То же с прыжком в воздухе.
+	 *
+	 * @param airJump прыжок в воздухе (двойной прыжок Scout) в этот тик; срабатывает только на первом подшаге
+	 */
+	public static void tick(MovingBody body, double strafe, double forward, boolean jump, boolean airJump,
+			MoveParams params, double unitsPerBlock, int substeps, boolean smoothTurn) {
 		if (substeps < 1) {
 			throw new IllegalArgumentException("подшагов должно быть не меньше одного: " + substeps);
 		}
@@ -63,7 +73,7 @@ public final class SubstepLoop {
 		for (int step = 0; step < substeps; step++) {
 			MoveInput moveInput = UnitConversion.toMoveInput(
 					strafe / VANILLA_INPUT_SCALE, forward / VANILLA_INPUT_SCALE,
-					yawStart + yawTurn * (step + 1) / substeps, jump && step == 0);
+					yawStart + yawTurn * (step + 1) / substeps, jump && step == 0, airJump && step == 0);
 			MoveState moving = SourceMovement.beforeMove(state, moveInput, params, dt);
 			boolean probingGround = moving.onGround();
 
