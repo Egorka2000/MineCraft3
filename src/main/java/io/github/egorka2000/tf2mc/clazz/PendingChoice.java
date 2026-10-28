@@ -6,6 +6,7 @@ import com.mojang.serialization.Codec;
 import io.github.egorka2000.tf2mc.Tf2Mc;
 import io.github.egorka2000.tf2mc.team.Teams;
 import io.github.egorka2000.tf2mc.team.TfTeam;
+import io.github.egorka2000.tf2mc.weapon.Tf2Weapons;
 
 import net.fabricmc.fabric.api.attachment.v1.AttachmentRegistry;
 import net.fabricmc.fabric.api.attachment.v1.AttachmentType;
@@ -120,6 +121,10 @@ public final class PendingChoice {
 	 * Перед возрождением: применяет запомненные команду и класс к погибшему игроку, чтобы игра
 	 * выбрала место возрождения уже по новой команде и перенесла новый класс на нового игрока.
 	 * Класс здесь только записывается: здоровье и оружие класса выдаёт возрождение.
+	 *
+	 * <p>Оружие прежнего класса забирается здесь же, у погибшего игрока: при включённом правиле
+	 * сохранения вещей игра переносит его инвентарь на нового игрока, и оружие Soldier досталось бы
+	 * игроку уже другого класса.
 	 */
 	public static void applyBeforeRespawn(ServerPlayer player) {
 		applyTeam(player, false);
@@ -128,6 +133,10 @@ public final class PendingChoice {
 		if (classId != null) {
 			player.removeAttached(CLASS);
 			Optional<TfClass> tfClass = TfClass.byId(classId);
+
+			if (!tfClass.equals(PlayerClasses.get(player))) {
+				Tf2Weapons.unequip(player);
+			}
 
 			if (tfClass.isPresent()) {
 				player.setAttached(PlayerClasses.CLASS_ID, tfClass.get().id());

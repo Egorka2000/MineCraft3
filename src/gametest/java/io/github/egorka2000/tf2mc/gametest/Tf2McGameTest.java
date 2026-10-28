@@ -660,6 +660,22 @@ public class Tf2McGameTest {
 			run(server.createCommandSourceStack(), "class soldier " + name);
 			run(server.createCommandSourceStack(), "team red " + name);
 			check(PlayerClasses.get(player).isPresent() && Teams.get(player).orElse(null) == TfTeam.RED, "оператор с ником не применил выбор сразу");
+
+			// Сменивший класс при возрождении не уносит оружие прежнего: оно забирается у погибшего
+			// до того, как игра перенесёт инвентарь новому игроку (при сохранении вещей переносит).
+			run(player.createCommandSourceStack(), "class scout");
+			check(PlayerClasses.get(player).orElse(null) == TfClass.SOLDIER, "смена на Scout применилась вдали от шкафа");
+			ServerPlayer dead = player;
+			player = server.getPlayerList().respawn(player, false, Entity.RemovalReason.KILLED);
+			player.connection.player = player;
+			check(PlayerClasses.get(player).orElse(null) == TfClass.SCOUT, "Scout не применён при возрождении");
+
+			for (ServerPlayer someone : new ServerPlayer[] {dead, player}) {
+				check(!someone.getInventory().contains(stack -> stack.is(RocketLauncher.ITEM) || stack.is(Shotgun.ITEM) || stack.is(Shovel.ITEM)),
+						someone == dead ? "оружие Soldier осталось у погибшего и перешло бы Scout" : "Scout возродился с оружием Soldier");
+			}
+
+			check(RocketLauncher.ammo(player) == null && Shotgun.WEAPON.ammo(player) == null, "у Scout остался боезапас Soldier");
 		} finally {
 			for (BlockPos pos : new BlockPos[] {redLocker, bluLocker, bluSpawn}) {
 				helper.setBlock(pos, Blocks.AIR);
